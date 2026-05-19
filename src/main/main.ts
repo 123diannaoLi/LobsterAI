@@ -3613,6 +3613,12 @@ if (!gotTheLock) {
     }
   });
 
+  ipcMain.handle('cowork:subagent:list', async (_event, options: { parentSessionId: string }) => {
+    if (!openClawRuntimeAdapter) return { success: true, runs: [] };
+    const runs = openClawRuntimeAdapter.listSubagentRuns(options.parentSessionId);
+    return { success: true, runs };
+  });
+
   ipcMain.handle('cowork:permission:respond', async (_event, options: {
     requestId: string;
     result: PermissionResult;

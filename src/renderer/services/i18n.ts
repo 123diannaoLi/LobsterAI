@@ -647,6 +647,8 @@ const translations: Record<LanguageType, Record<string, string>> = {
     subTaskMessages: '条消息',
     subTaskToolProcessing: '处理中...',
     subTaskToolDone: '已完成',
+    subagentError: '出错',
+    subagentUnnamed: '子任务',
     coworkDangerousOperation: '警告：此操作可能会修改文件或执行系统命令，请仔细检查。',
     coworkDestructiveOperation: '高危操作：此命令可能导致不可逆的数据丢失，请务必确认。',
     coworkCautionOperation: '注意：此命令可能会修改文件或系统状态，请仔细检查。',
@@ -2596,6 +2598,8 @@ const translations: Record<LanguageType, Record<string, string>> = {
     subTaskMessages: 'messages',
     subTaskToolProcessing: 'Processing...',
     subTaskToolDone: 'Done',
+    subagentError: 'Error',
+    subagentUnnamed: 'Subtask',
     coworkDangerousOperation:
       'Warning: This operation may modify files or execute system commands. Please review carefully.',
     coworkDestructiveOperation:

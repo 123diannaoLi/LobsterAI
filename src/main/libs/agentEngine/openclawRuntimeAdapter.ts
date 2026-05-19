@@ -3546,11 +3546,24 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
           : typeof args?.taskName === 'string' && args.taskName
             ? args.taskName
             : toolCallId; // fallback to toolCallId as unique identifier
+        const task = typeof args?.task === 'string' ? args.task : '';
+        const label = typeof args?.label === 'string' ? args.label : undefined;
         if (agentId) {
           this.subagentStatus.set(agentId, 'running');
           if (!this.subagentMessages.has(agentId)) {
             this.subagentMessages.set(agentId, []);
           }
+          // Persist subagent run to local store
+          this.store.insertSubagentRun({
+            id: agentId,
+            parentSessionId: sessionId,
+            sessionKey: null,
+            agentId,
+            task: task || null,
+            label: label ?? null,
+            status: 'running',
+            createdAt: Date.now(),
+          });
         }
       }
     }
@@ -3646,6 +3659,8 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
             ? (toToolInputRecord(data.args) as Record<string, unknown>).agentId as string : '';
           if (agentId && childSessionKey) {
             this.subagentSessionKeys.set(agentId, childSessionKey);
+            // Persist session key to local store
+            this.store.updateSubagentRunSessionKey(agentId, childSessionKey);
           }
         } catch { /* result may not be JSON */ }
       }
@@ -3656,6 +3671,8 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         const agentId = typeof args?.agentId === 'string' ? args.agentId : '';
         if (agentId && this.subagentStatus.has(agentId)) {
           this.subagentStatus.set(agentId, 'done');
+          // Persist status update
+          this.store.updateSubagentRunStatus(agentId, 'done', Date.now());
         }
       }
 
@@ -5736,6 +5753,36 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       result[agentId] = status;
     }
     return result;
+  }
+
+  /**
+   * Returns persisted subagent runs for a parent session.
+   * Merges in-memory status with database records for real-time accuracy.
+   */
+  listSubagentRuns(parentSessionId: string): Array<{
+    id: string;
+    agentId: string | null;
+    task: string | null;
+    label: string | null;
+    sessionKey: string | null;
+    status: 'running' | 'done' | 'error';
+    createdAt: number;
+  }> {
+    const runs = this.store.listSubagentRuns(parentSessionId);
+    return runs.map((run) => {
+      // Prefer in-memory status (more up-to-date) over persisted status
+      const memoryStatus = run.agentId ? this.subagentStatus.get(run.agentId) : undefined;
+      const memorySessionKey = run.agentId ? this.subagentSessionKeys.get(run.agentId) : undefined;
+      return {
+        id: run.id,
+        agentId: run.agentId,
+        task: run.task,
+        label: run.label,
+        sessionKey: memorySessionKey ?? run.sessionKey,
+        status: memoryStatus ?? run.status,
+        createdAt: run.createdAt,
+      };
+    });
   }
 
   /**

@@ -531,6 +531,19 @@ interface IElectronAPI {
       messages?: Array<{ role: string; content: string }>;
       error?: string;
     }>;
+    listSubagentSessions: (parentSessionId: string) => Promise<{
+      success: boolean;
+      runs?: Array<{
+        id: string;
+        agentId: string | null;
+        task: string | null;
+        label: string | null;
+        sessionKey: string | null;
+        status: 'running' | 'done' | 'error';
+        createdAt: number;
+      }>;
+      error?: string;
+    }>;
     respondToPermission: (options: {
       requestId: string;
       result: CoworkPermissionResult;
