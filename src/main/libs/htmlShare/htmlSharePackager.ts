@@ -25,6 +25,12 @@ const EXCLUDED_DIRECTORY_NAMES = new Set([
   'coverage',
 ]);
 
+const SENSITIVE_DIRECTORY_NAMES = new Set([
+  '.cowork-temp',
+  '.openclaw',
+  'memory',
+]);
+
 const EXCLUDED_FILE_NAMES = new Set([
   '.DS_Store',
   'Thumbs.db',
@@ -64,6 +70,14 @@ const ALLOWED_EXTENSIONS = new Set([
   '.ogg',
 ]);
 
+const SHARE_BOUNDARY_MARKER_NAMES = [
+  'package.json',
+  'AGENTS.md',
+  '.git',
+  '.openclaw',
+  'MEMORY.md',
+];
+
 export interface HtmlSharePackageResult {
   archivePath: string;
   sourceSha256: string;
@@ -92,43 +106,79 @@ function isAllowedStaticFile(filePath: string): boolean {
   return ALLOWED_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
-async function collectStaticFiles(rootDir: string): Promise<StaticFileEntry[]> {
-  const entries: StaticFileEntry[] = [];
+function isBlockedStaticPath(rootDir: string, filePath: string): boolean {
+  const relative = path.relative(rootDir, filePath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return true;
+  const parts = relative.split(path.sep).filter(Boolean);
+  return parts.some(part => EXCLUDED_DIRECTORY_NAMES.has(part) || SENSITIVE_DIRECTORY_NAMES.has(part))
+    || isExcludedFileName(path.basename(filePath));
+}
 
-  const visit = async (dir: string) => {
-    const children = await fs.promises.readdir(dir, { withFileTypes: true });
-    for (const child of children) {
-      if (child.isSymbolicLink()) {
-        throw new Error(`Symbolic links cannot be shared: ${path.relative(rootDir, path.join(dir, child.name))}`);
-      }
-      if (child.isDirectory()) {
-        if (EXCLUDED_DIRECTORY_NAMES.has(child.name)) continue;
-        await visit(path.join(dir, child.name));
-        continue;
-      }
-      if (!child.isFile() || isExcludedFileName(child.name)) continue;
+async function hasShareBoundaryMarker(dir: string): Promise<boolean> {
+  for (const markerName of SHARE_BOUNDARY_MARKER_NAMES) {
+    try {
+      await fs.promises.access(path.join(dir, markerName));
+      return true;
+    } catch {
+      // Keep walking until a project boundary is found.
+    }
+  }
+  return false;
+}
 
-      const absolutePath = path.join(dir, child.name);
-      if (!isAllowedStaticFile(absolutePath)) continue;
+async function findShareBoundaryRoot(startDir: string): Promise<string> {
+  const resolvedStartDir = path.resolve(startDir);
+  let current = resolvedStartDir;
+  while (true) {
+    if (await hasShareBoundaryMarker(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return resolvedStartDir;
+    current = parent;
+  }
+}
 
-      const stat = await fs.promises.stat(absolutePath);
-      if (stat.size > MAX_CLIENT_SINGLE_FILE_BYTES) {
-        throw new Error(`File is too large to share: ${path.relative(rootDir, absolutePath)}`);
-      }
+function findCommonDirectory(filePaths: string[]): string {
+  if (!filePaths.length) {
+    throw new Error('Shared output did not contain any files.');
+  }
 
-      entries.push({
-        absolutePath,
-        archiveName: normalizeArchiveName(path.relative(rootDir, absolutePath)),
-        size: stat.size,
-      });
-
-      if (entries.length > MAX_CLIENT_FILE_COUNT) {
-        throw new Error(`Too many files to share. The limit is ${MAX_CLIENT_FILE_COUNT}.`);
+  const directoryParts = filePaths.map(filePath => path.dirname(path.resolve(filePath)).split(path.sep));
+  const first = directoryParts[0];
+  let commonLength = first.length;
+  for (const parts of directoryParts.slice(1)) {
+    commonLength = Math.min(commonLength, parts.length);
+    for (let index = 0; index < commonLength; index += 1) {
+      if (parts[index] !== first[index]) {
+        commonLength = index;
+        break;
       }
     }
-  };
+  }
 
-  await visit(rootDir);
+  return first.slice(0, commonLength).join(path.sep) || path.parse(filePaths[0]).root;
+}
+
+async function buildStaticFileEntries(
+  archiveRoot: string,
+  filePaths: string[],
+): Promise<StaticFileEntry[]> {
+  if (filePaths.length > MAX_CLIENT_FILE_COUNT) {
+    throw new Error(`Too many files to share. The limit is ${MAX_CLIENT_FILE_COUNT}.`);
+  }
+
+  const entries: StaticFileEntry[] = [];
+  for (const filePath of filePaths) {
+    const stat = await fs.promises.stat(filePath);
+    if (stat.size > MAX_CLIENT_SINGLE_FILE_BYTES) {
+      throw new Error(`File is too large to share: ${path.relative(archiveRoot, filePath)}`);
+    }
+    entries.push({
+      absolutePath: filePath,
+      archiveName: normalizeArchiveName(path.relative(archiveRoot, filePath)),
+      size: stat.size,
+    });
+  }
+
   const totalBytes = entries.reduce((sum, entry) => sum + entry.size, 0);
   if (totalBytes > MAX_CLIENT_TOTAL_BYTES) {
     throw new Error(`Share content is too large. The limit is ${Math.floor(MAX_CLIENT_TOTAL_BYTES / 1024 / 1024)}MB.`);
@@ -183,7 +233,8 @@ export async function packageHtmlFile(filePath: string): Promise<HtmlSharePackag
     throw new Error('Only HTML files can be shared.');
   }
 
-  return packageStaticDirectory(path.dirname(resolvedFilePath), path.basename(resolvedFilePath));
+  const boundaryRoot = await findShareBoundaryRoot(path.dirname(resolvedFilePath));
+  return packageStaticDirectory(boundaryRoot, path.relative(boundaryRoot, resolvedFilePath));
 }
 
 export async function packageStaticDirectory(rootDir: string, entryFile = 'index.html'): Promise<HtmlSharePackageResult> {
@@ -200,28 +251,37 @@ export async function packageStaticDirectory(rootDir: string, entryFile = 'index
     throw new Error('Shared output directory must contain an entry HTML file.');
   }
 
-  const files = await collectStaticFiles(resolvedRootDir);
+  const dependencyScan = await scanHtmlDependencies(entryPath, {
+    allowedRoot: resolvedRootDir,
+    isAllowedFile: isAllowedStaticFile,
+    isBlockedPath: filePath => isBlockedStaticPath(resolvedRootDir, filePath),
+  });
+  console.debug(
+    `[HtmlShare] dependency scan found ${dependencyScan.files.length} files, ${dependencyScan.missing.length} missing referenced resources, and ${dependencyScan.blocked.length} blocked resources`,
+  );
+  const archiveRoot = findCommonDirectory(dependencyScan.files);
+  const files = await buildStaticFileEntries(archiveRoot, dependencyScan.files);
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
   console.debug(
-    `[HtmlShare] collected ${files.length} static files with ${totalBytes} bytes before compression`,
+    `[HtmlShare] collected ${files.length} referenced static files with ${totalBytes} bytes before compression`,
   );
-  if (!files.some(file => file.archiveName === normalizeArchiveName(relativeEntry))) {
+  const archiveEntry = normalizeArchiveName(path.relative(archiveRoot, entryPath));
+  if (!files.some(file => file.archiveName === archiveEntry)) {
     throw new Error('Entry HTML was excluded from the share archive.');
   }
 
-  const dependencyScan = await scanHtmlDependencies(resolvedRootDir, relativeEntry);
-  console.debug(
-    `[HtmlShare] dependency scan found ${dependencyScan.missing.length} missing referenced resources`,
-  );
   const { archivePath, sourceSha256 } = await writeZip(files);
 
   return {
     archivePath,
     sourceSha256,
-    entryFile: normalizeArchiveName(relativeEntry),
-    rootDir: resolvedRootDir,
+    entryFile: archiveEntry,
+    rootDir: archiveRoot,
     totalFiles: files.length,
     totalBytes,
-    warnings: dependencyScan.missing.map(item => `Missing referenced resource: ${item}`),
+    warnings: [
+      ...dependencyScan.missing.map(item => `Missing referenced resource: ${item}`),
+      ...dependencyScan.blocked.map(item => `Blocked referenced resource: ${item}`),
+    ],
   };
 }
