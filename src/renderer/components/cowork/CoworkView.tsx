@@ -14,6 +14,7 @@ import {
   selectIsStreaming,
 } from '../../store/selectors/coworkSelectors';
 import { addMessage, setCurrentSession, setStreaming, updateSessionStatus } from '../../store/slices/coworkSlice';
+import { clearActiveKits } from '../../store/slices/kitSlice';
 import { clearSelection,selectAction, setActions } from '../../store/slices/quickActionSlice';
 import { clearActiveSkills, setActiveSkillIds } from '../../store/slices/skillSlice';
 import type { CoworkImageAttachment, CoworkSession, OpenClawEngineStatus, SubagentSessionSummary } from '../../types/cowork';
@@ -34,13 +35,14 @@ import SubagentSessionDetail from './SubagentSessionDetail';
 export interface CoworkViewProps {
   onRequestAppSettings?: (options?: SettingsOpenOptions) => void;
   onShowSkills?: () => void;
+  onShowKits?: () => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   onNewChat?: () => void;
   updateBadge?: React.ReactNode;
 }
 
-const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSkills, isSidebarCollapsed, onToggleSidebar, onNewChat, updateBadge }) => {
+const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSkills, onShowKits, isSidebarCollapsed, onToggleSidebar, onNewChat, updateBadge }) => {
   const dispatch = useDispatch();
   const isMac = window.electron.platform === 'darwin';
   const [isInitialized, setIsInitialized] = useState(false);
@@ -83,6 +85,8 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
 
   const activeSkillIds = useSelector((state: RootState) => state.skill.activeSkillIds);
   const skills = useSelector((state: RootState) => state.skill.skills);
+  const activeKitIds = useSelector((state: RootState) => state.kit.activeKitIds);
+  const installedKits = useSelector((state: RootState) => state.kit.installedKits);
   const quickActions = useSelector((state: RootState) => state.quickAction.actions);
   const selectedActionId = useSelector((state: RootState) => state.quickAction.selectedActionId);
   const currentAgentId = useSelector((state: RootState) => state.agent.currentAgentId);
@@ -246,8 +250,13 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
       );
       const now = Date.now();
 
-      // Capture active skill IDs before clearing them
+      // Capture active skill IDs and kit IDs before clearing them
       const sessionSkillIds = [...activeSkillIds];
+      const sessionKitIds = [...activeKitIds];
+
+      // Expand kit IDs into skill IDs and deduplicate
+      const kitSkillIds = sessionKitIds.flatMap(kitId => installedKits[kitId]?.skillIds ?? []);
+      const expandedSkillIds = [...new Set([...sessionSkillIds, ...kitSkillIds])];
 
       const tempSession: CoworkSession = {
         id: tempSessionId,
@@ -261,7 +270,8 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
         systemPrompt: '',
         modelOverride: currentAgentSelectedModel ? toOpenClawModelRef(currentAgentSelectedModel) : '',
         executionMode: config.executionMode || 'local',
-        activeSkillIds: sessionSkillIds,
+        activeSkillIds: expandedSkillIds,
+        activeKitIds: sessionKitIds.length > 0 ? sessionKitIds : undefined,
         agentId: currentAgentId,
         messages: [
           {
@@ -269,9 +279,10 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
             type: 'user',
             content: prompt,
             timestamp: now,
-            metadata: (sessionSkillIds.length > 0 || (imageAttachments && imageAttachments.length > 0))
+            metadata: (expandedSkillIds.length > 0 || sessionKitIds.length > 0 || (imageAttachments && imageAttachments.length > 0))
               ? {
-                ...(sessionSkillIds.length > 0 ? { skillIds: sessionSkillIds } : {}),
+                ...(expandedSkillIds.length > 0 ? { skillIds: expandedSkillIds } : {}),
+                ...(sessionKitIds.length > 0 ? { kitIds: sessionKitIds } : {}),
                 ...(imageAttachments && imageAttachments.length > 0 ? { imageAttachments } : {}),
               }
               : undefined,
@@ -285,9 +296,10 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
       dispatch(setCurrentSession(tempSession));
       dispatch(setStreaming(true));
 
-      // Clear active skills and quick action selection after starting session
+      // Clear active skills, kits and quick action selection after starting session
       // so they don't persist to next session
       dispatch(clearActiveSkills());
+      dispatch(clearActiveKits());
       dispatch(clearSelection());
 
       // Combine skill prompt with system prompt.
@@ -305,7 +317,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
         title: fallbackTitle,
         cwd: currentAgentWorkingDirectory || undefined,
         systemPrompt: combinedSystemPrompt,
-        activeSkillIds: sessionSkillIds,
+        activeSkillIds: expandedSkillIds,
         agentId: currentAgentId,
         modelOverride: sessionModelOverride,
         imageAttachments,
@@ -361,8 +373,13 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
         imageAttachmentsBase64Lengths: imageAttachments?.map(a => a.base64Data.length),
       });
 
-      // Capture active skill IDs before clearing
+      // Capture active skill IDs and kit IDs before clearing
       const sessionSkillIds = [...activeSkillIds];
+      const sessionKitIds = [...activeKitIds];
+
+      // Expand kit IDs into skill IDs and deduplicate
+      const kitSkillIds = sessionKitIds.flatMap(kitId => installedKits[kitId]?.skillIds ?? []);
+      const expandedSkillIds = [...new Set([...sessionSkillIds, ...kitSkillIds])];
 
       // Only send a continuation system prompt when this turn selects new skills.
       // Otherwise the main process falls back to the session prompt created on the first turn.
@@ -372,13 +389,14 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
         sessionId: currentSession.id,
         prompt,
         systemPrompt: combinedSystemPrompt,
-        activeSkillIds: sessionSkillIds.length > 0 ? sessionSkillIds : undefined,
+        activeSkillIds: expandedSkillIds.length > 0 ? expandedSkillIds : undefined,
         imageAttachments,
         mediaSelection: mediaSelection && mediaSelection.mode !== 'none' ? mediaSelection : undefined,
         mediaReferences,
       });
-      if (sent && sessionSkillIds.length > 0) {
+      if (sent && (sessionSkillIds.length > 0 || sessionKitIds.length > 0)) {
         dispatch(clearActiveSkills());
+        dispatch(clearActiveKits());
       }
       return sent;
     } finally {
@@ -568,6 +586,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
         {engineStatusBanner}
         <CoworkSessionDetail
           onManageSkills={() => onShowSkills?.()}
+          onManageKits={() => onShowKits?.()}
           onContinue={handleContinueSession}
           onStop={handleStopSession}
           isSidebarCollapsed={isSidebarCollapsed}
@@ -633,6 +652,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
               showModelSelector={true}
               showAgentSelector={true}
               onManageSkills={() => onShowSkills?.()}
+              onManageKits={() => onShowKits?.()}
             />
           </div>
 

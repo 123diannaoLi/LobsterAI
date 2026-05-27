@@ -1252,6 +1252,10 @@ const translations: Record<LanguageType, Record<string, string>> = {
     kitMarketplace: '套件市场',
     kitSkillCount: '{count} 个技能',
     kitOfficial: '官方',
+    manageKits: '管理套件',
+    searchKits: '搜索套件',
+    clearKit: '清除套件',
+    noKitsInstalled: '暂无已安装套件',
 
     // MCP 服务
     mcpServers: 'MCP',
@@ -3527,6 +3531,10 @@ const translations: Record<LanguageType, Record<string, string>> = {
     kitMarketplace: 'Marketplace',
     kitSkillCount: '{count} skills',
     kitOfficial: 'Official',
+    manageKits: 'Manage Kits',
+    searchKits: 'Search kits',
+    clearKit: 'Clear Kit',
+    noKitsInstalled: 'No kits installed',
 
     // MCP Servers
     mcpServers: 'MCP',

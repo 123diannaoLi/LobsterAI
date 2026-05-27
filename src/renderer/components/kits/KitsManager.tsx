@@ -10,7 +10,11 @@ import SidebarKitsIcon from '../icons/SidebarKitsIcon';
 
 type KitTab = 'installed' | 'marketplace';
 
-const KitsManager: React.FC = () => {
+interface KitsManagerProps {
+  onTryAsking?: (text: string, kitId: string) => void;
+}
+
+const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking }) => {
   const [kits, setKits] = useState<MarketplaceKit[]>([]);
   const [installedKits, setInstalledKits] = useState<Record<string, InstalledKit>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -159,6 +163,7 @@ const KitsManager: React.FC = () => {
                 <div
                   key={idx}
                   className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border bg-surface hover:border-primary/50 transition-colors cursor-pointer"
+                  onClick={() => onTryAsking?.(resolveLocalizedText(prompt), selectedKit.id)}
                 >
                   <span className="text-sm text-foreground">{resolveLocalizedText(prompt)}</span>
                   <ArrowLeftIcon className="h-3.5 w-3.5 text-secondary rotate-180 flex-shrink-0" />

@@ -42,6 +42,7 @@ import {
   selectFirstPendingPermission,
 } from './store/selectors/coworkSelectors';
 import { setDraftPrompt } from './store/slices/coworkSlice';
+import { setActiveKitIds } from './store/slices/kitSlice';
 import { setAvailableModels, setDefaultSelectedModel } from './store/slices/modelSlice';
 import { clearSelection } from './store/slices/quickActionSlice';
 import type { CoworkPermissionResult } from './types/cowork';
@@ -316,6 +317,18 @@ const App: React.FC = () => {
   const handleShowKits = useCallback(() => {
     setMainView('kits');
   }, []);
+
+  const handleKitTryAsking = useCallback((text: string, kitId: string) => {
+    dispatch(setActiveKitIds([kitId]));
+    coworkService.clearSession({ restoreAgentSkills: true });
+    dispatch(clearSelection());
+    setMainView('cowork');
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('cowork:focus-input', {
+        detail: { text },
+      }));
+    }, 0);
+  }, [dispatch]);
 
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarCollapsed((prev) => !prev);
@@ -816,6 +829,7 @@ const App: React.FC = () => {
                 onToggleSidebar={handleToggleSidebar}
                 onNewChat={handleNewChat}
                 updateBadge={isSidebarCollapsed ? updateBadge : null}
+                onTryAsking={handleKitTryAsking}
               />
             ) : mainView === 'mcp' ? (
               <McpView
@@ -828,6 +842,7 @@ const App: React.FC = () => {
               <CoworkView
                 onRequestAppSettings={privacyAgreed === true && !showWelcome ? handleShowSettings : undefined}
                 onShowSkills={handleShowSkills}
+                onShowKits={handleShowKits}
                 isSidebarCollapsed={isSidebarCollapsed}
                 onToggleSidebar={handleToggleSidebar}
                 onNewChat={handleNewChat}

@@ -11,9 +11,10 @@ interface KitsViewProps {
   onToggleSidebar?: () => void;
   onNewChat?: () => void;
   updateBadge?: React.ReactNode;
+  onTryAsking?: (text: string, kitId: string) => void;
 }
 
-const KitsView: React.FC<KitsViewProps> = ({ isSidebarCollapsed, onToggleSidebar, onNewChat, updateBadge }) => {
+const KitsView: React.FC<KitsViewProps> = ({ isSidebarCollapsed, onToggleSidebar, onNewChat, updateBadge, onTryAsking }) => {
   const isMac = window.electron.platform === 'darwin';
   return (
     <div className="flex-1 flex flex-col bg-background h-full">
@@ -47,7 +48,7 @@ const KitsView: React.FC<KitsViewProps> = ({ isSidebarCollapsed, onToggleSidebar
 
       <div className="flex-1 overflow-y-auto min-h-0 [scrollbar-gutter:stable]">
         <div className="max-w-3xl mx-auto px-4 py-6">
-          <KitsManager />
+          <KitsManager onTryAsking={onTryAsking} />
         </div>
       </div>
     </div>
