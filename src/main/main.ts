@@ -53,9 +53,12 @@ import {
 import { DialogIpc } from '../shared/dialog/constants';
 import {
   HtmlShareAccessMode,
+  type HtmlShareConfigurableStatus,
   HtmlShareErrorCode,
   HtmlShareIpc,
   HtmlShareSourceType,
+  HtmlShareStatus,
+  type HtmlShareStatus as HtmlShareStatusValue,
 } from '../shared/htmlShare/constants';
 import {
   type ListLocalWebServicesOptions,
@@ -159,7 +162,12 @@ import {
   isPreviewServerUrl,
   stopHtmlPreviewServer,
 } from './libs/htmlPreviewServer';
-import { getHtmlShareBySource, updateHtmlShare, uploadHtmlShare } from './libs/htmlShare/htmlShareClient';
+import {
+  getHtmlShareBySource,
+  updateHtmlShare,
+  updateHtmlShareStatus,
+  uploadHtmlShare,
+} from './libs/htmlShare/htmlShareClient';
 import { packageHtmlFile } from './libs/htmlShare/htmlSharePackager';
 import { getKeyfromAttribution, initializeKeyfromAttribution } from './libs/keyfromAttribution';
 import { exportLogsZip } from './libs/logExport';
@@ -315,10 +323,16 @@ interface HtmlShareCreateFromHtmlFileInput {
 
 interface HtmlShareUpdateFromHtmlFileInput extends HtmlShareCreateFromHtmlFileInput {
   shareId: string;
+  currentStatus?: HtmlShareStatusValue;
 }
 
 interface HtmlShareGetByHtmlFileInput {
   filePath: string;
+}
+
+interface HtmlShareUpdateStatusInput {
+  shareId: string;
+  status: HtmlShareConfigurableStatus;
 }
 
 function sanitizeHtmlShareString(
@@ -351,6 +365,30 @@ function validateHtmlShareAccessMode(value: unknown): void {
   }
 }
 
+function sanitizeHtmlShareConfigurableStatus(
+  value: unknown,
+): HtmlShareConfigurableStatus | undefined {
+  if (value === undefined) return undefined;
+  const status = sanitizeHtmlShareString(value, 'status', 32);
+  if (status !== HtmlShareStatus.Live && status !== HtmlShareStatus.Disabled) {
+    throw new Error('status must be live or disabled.');
+  }
+  return status;
+}
+
+function sanitizeHtmlShareStatus(value: unknown): HtmlShareStatusValue | undefined {
+  if (value === undefined) return undefined;
+  const status = sanitizeHtmlShareString(value, 'currentStatus', 32);
+  if (
+    status !== HtmlShareStatus.Live &&
+    status !== HtmlShareStatus.Disabled &&
+    status !== HtmlShareStatus.Failed
+  ) {
+    throw new Error('currentStatus must be live, disabled, or failed.');
+  }
+  return status;
+}
+
 function sanitizeCreateFromHtmlFileInput(input: unknown): HtmlShareCreateFromHtmlFileInput {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('Invalid HTML share request.');
@@ -371,6 +409,7 @@ function sanitizeUpdateFromHtmlFileInput(input: unknown): HtmlShareUpdateFromHtm
   return {
     ...source,
     shareId: sanitizeHtmlShareString(record.shareId, 'shareId', 64),
+    currentStatus: sanitizeHtmlShareStatus(record.currentStatus),
   };
 }
 
@@ -381,6 +420,21 @@ function sanitizeGetByHtmlFileInput(input: unknown): HtmlShareGetByHtmlFileInput
   const source = input as Record<string, unknown>;
   return {
     filePath: sanitizeHtmlShareString(source.filePath, 'filePath', 4096),
+  };
+}
+
+function sanitizeUpdateHtmlShareStatusInput(input: unknown): HtmlShareUpdateStatusInput {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('Invalid HTML share status request.');
+  }
+  const source = input as Record<string, unknown>;
+  const status = sanitizeHtmlShareConfigurableStatus(source.status);
+  if (!status) {
+    throw new Error('status is required.');
+  }
+  return {
+    shareId: sanitizeHtmlShareString(source.shareId, 'shareId', 64),
+    status,
   };
 }
 
@@ -4230,6 +4284,9 @@ if (!gotTheLock) {
         return { success: false, code: HtmlShareErrorCode.FeatureUnavailable };
       }
       const options = sanitizeUpdateFromHtmlFileInput(input);
+      if (options.currentStatus === HtmlShareStatus.Disabled) {
+        return { success: false, code: HtmlShareErrorCode.DisabledCannotUpdate };
+      }
       const clientSourceKey = buildHtmlShareClientSourceKey(options.filePath);
       const packaged = await packageHtmlFile(options.filePath);
       archivePath = packaged.archivePath;
@@ -4272,6 +4329,28 @@ if (!gotTheLock) {
     }
   });
 
+  ipcMain.handle(HtmlShareIpc.UpdateStatus, async (_event, input: unknown) => {
+    try {
+      if (!isTestModeEnabled()) {
+        return { success: false, code: HtmlShareErrorCode.FeatureUnavailable };
+      }
+      const options = sanitizeUpdateHtmlShareStatusInput(input);
+      return await updateHtmlShareStatus(
+        getServerApiBaseUrl(),
+        getHtmlSharePublicBaseUrl(),
+        fetchWithAuth,
+        options.shareId,
+        options.status,
+      );
+    } catch (error) {
+      console.error('[HtmlShare] failed to update share status:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update share status',
+      };
+    }
+  });
+
   ipcMain.handle(HtmlShareIpc.Get, async (_event, shareId: unknown) => {
     try {
       if (!isTestModeEnabled()) {
@@ -4304,20 +4383,13 @@ if (!gotTheLock) {
         return { success: false, code: HtmlShareErrorCode.FeatureUnavailable };
       }
       const id = sanitizeHtmlShareString(shareId, 'shareId', 64);
-      const resp = await fetchWithAuth(
-        `${getServerApiBaseUrl()}/api/html-shares/${encodeURIComponent(id)}`,
-        {
-          method: 'DELETE',
-        },
+      return await updateHtmlShareStatus(
+        getServerApiBaseUrl(),
+        getHtmlSharePublicBaseUrl(),
+        fetchWithAuth,
+        id,
+        HtmlShareStatus.Disabled,
       );
-      const body = (await resp.json().catch((): null => null)) as {
-        code?: number;
-        message?: string;
-      } | null;
-      if (!resp.ok || body?.code !== 0) {
-        return { success: false, error: body?.message || `Share disable failed: ${resp.status}` };
-      }
-      return { success: true };
     } catch (error) {
       return {
         success: false,

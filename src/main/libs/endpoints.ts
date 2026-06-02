@@ -28,8 +28,7 @@ export const isTestModeEnabled = (): boolean => {
  */
 export const getServerApiBaseUrl = (): string => {
   return isTestModeEnabled()
-    // ? 'https://lobsterai-server.inner.youdao.com'
-    ? 'http://zj183.corp.yodao.com:18878'
+    ? 'https://lobsterai-server.inner.youdao.com'
     : 'https://lobsterai-server.youdao.com';
 };
 
