@@ -1,5 +1,6 @@
 import type { OpenClawSessionPatch } from '../../../common/openclawSession';
 import type { CoworkImageAttachmentPayload } from '../../../shared/cowork/imageAttachments';
+import type { CoworkSelectedTextSnippet } from '../../../shared/cowork/selectedText';
 import type {
   KitReference,
   ResolvedKitCapabilities,
@@ -107,6 +108,7 @@ export type CoworkStartOptions = {
   agentId?: string;
   mediaSelection?: CoworkMediaSelection;
   mediaReferences?: CoworkMediaAttachmentRef[];
+  selectedTextSnippets?: CoworkSelectedTextSnippet[];
 };
 
 export type CoworkContinueOptions = {
@@ -119,6 +121,7 @@ export type CoworkContinueOptions = {
   imageAttachments?: CoworkImageAttachment[];
   mediaSelection?: CoworkMediaSelection;
   mediaReferences?: CoworkMediaAttachmentRef[];
+  selectedTextSnippets?: CoworkSelectedTextSnippet[];
 };
 
 export interface CoworkRuntime {

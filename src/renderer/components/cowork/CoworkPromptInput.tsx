@@ -8,6 +8,7 @@ import {
   formatCoworkImageAttachmentLimit,
   validateCoworkImageAttachmentSize,
 } from '../../../shared/cowork/imageAttachments';
+import type { CoworkSelectedTextSnippet } from '../../../shared/cowork/selectedText';
 import { agentService } from '../../services/agent';
 import { configService } from '../../services/config';
 import { coworkService } from '../../services/cowork';
@@ -19,10 +20,13 @@ import { selectDraftPrompts } from '../../store/selectors/coworkSelectors';
 import {
   addDraftAttachment,
   clearDraftAttachments,
+  clearDraftSelectedTextSnippets,
   type DraftAttachment,
+  removeDraftSelectedTextSnippet,
   setDraftAttachments,
   setDraftKitIds,
   setDraftPrompt,
+  setDraftSelectedTextSnippets,
   setDraftSkillIds,
   updateCurrentSessionModelOverride,
 } from '../../store/slices/coworkSlice';
@@ -62,6 +66,7 @@ import {
 import MediaModelPicker from './MediaModelPicker';
 import { buildSelectedKitContextPrompt } from './selectedKitContextPrompt';
 import { buildSelectedSkillRoutingPrompt } from './selectedSkillRoutingPrompt';
+import SelectedTextSnippetBadge from './SelectedTextSnippetBadge';
 import { usePersistAgentModelSelection } from './usePersistAgentModelSelection';
 
 // CoworkAttachment is aliased from the Redux-persisted DraftAttachment type
@@ -182,6 +187,8 @@ export interface CoworkPromptInputRef {
   setValue: (value: string) => void;
   /** 设置图片附件（用于重新编辑消息时还原图片） */
   setImageAttachments: (images: CoworkImageAttachment[]) => void;
+  /** 设置选中的 assistant 文本片段（用于重新编辑消息时还原上下文） */
+  setSelectedTextSnippets: (snippets: CoworkSelectedTextSnippet[]) => void;
   /** 插入浏览器注释截图和注释文本 */
   insertBrowserAnnotation: (annotation: BrowserAnnotationPayload) => void;
   /** 聚焦输入框 */
@@ -189,7 +196,7 @@ export interface CoworkPromptInputRef {
 }
 
 interface CoworkPromptInputProps {
-  onSubmit: (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], mediaReferences?: MediaAttachmentRef[]) => boolean | void | Promise<boolean | void>;
+  onSubmit: (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], mediaReferences?: MediaAttachmentRef[], selectedTextSnippets?: CoworkSelectedTextSnippet[]) => boolean | void | Promise<boolean | void>;
   onStop?: () => void;
   isStreaming?: boolean;
   placeholder?: string;
@@ -240,6 +247,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const draftKey = sessionId || '__home__';
     const draftPrompt = useSelector((state: RootState) => selectDraftPrompts(state)[draftKey] || '');
     const attachments = useSelector((state: RootState) => state.cowork.draftAttachments[draftKey] || EMPTY_ATTACHMENTS) as CoworkAttachment[];
+    const selectedTextSnippets = useSelector((state: RootState) => state.cowork.draftSelectedTextSnippets[draftKey] || []);
     const currentAgentId = useSelector((state: RootState) => state.agent.currentAgentId);
     const agents = useSelector((state: RootState) => state.agent.agents);
     const coworkAgentEngine = useSelector((state: RootState) => state.cowork.config.agentEngine);
@@ -296,6 +304,9 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         dataUrl: `data:${img.mimeType};base64,${img.base64Data}`,
       }));
       dispatch(setDraftAttachments({ draftKey, attachments: newAttachments }));
+    },
+    setSelectedTextSnippets: (snippets: CoworkSelectedTextSnippet[]) => {
+      dispatch(setDraftSelectedTextSnippets({ draftKey, snippets }));
     },
     insertBrowserAnnotation: (annotation) => {
       const timestamp = Date.now();
@@ -432,10 +443,12 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       if (detail?.text !== undefined) {
         setValue(detail.text);
         dispatch(clearDraftAttachments(draftKey));
+        dispatch(clearDraftSelectedTextSnippets(draftKey));
         setImageVisionHint(false);
       } else if (shouldClear) {
         setValue('');
         dispatch(clearDraftAttachments(draftKey));
+        dispatch(clearDraftSelectedTextSnippets(draftKey));
         dispatch(setDraftKitIds({ draftKey, kitIds: [] }));
         dispatch(setActiveKitIds([]));
         setImageVisionHint(false);
@@ -783,13 +796,14 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     // Resolve @media tokens into MediaAttachmentRef array
     const mediaReferences = extractMediaReferencesFromPrompt(finalPrompt, mediaLabels);
 
-    const result = await onSubmit(finalPrompt, skillPrompt, imageAtts.length > 0 ? imageAtts : undefined, mediaReferences.length > 0 ? mediaReferences : undefined);
+    const result = await onSubmit(finalPrompt, skillPrompt, imageAtts.length > 0 ? imageAtts : undefined, mediaReferences.length > 0 ? mediaReferences : undefined, selectedTextSnippets.length > 0 ? selectedTextSnippets : undefined);
     if (result === false) return;
     setValue('');
     dispatch(setDraftPrompt({ sessionId: draftKey, draft: '' }));
     dispatch(clearDraftAttachments(draftKey));
+    dispatch(clearDraftSelectedTextSnippets(draftKey));
     setImageVisionHint(false);
-  }, [value, isStreaming, disabled, isPatchingModel, onSubmit, activeSkillIds, skills, activeKitIds, marketplaceKits, installedKits, attachments, showFolderSelector, workingDirectory, dispatch, draftKey, effectiveSelectedModel?.id, modelSupportsImage, mediaLabels]);
+  }, [value, isStreaming, disabled, isPatchingModel, onSubmit, activeSkillIds, skills, activeKitIds, marketplaceKits, installedKits, attachments, showFolderSelector, workingDirectory, dispatch, draftKey, effectiveSelectedModel?.id, modelSupportsImage, mediaLabels, selectedTextSnippets]);
 
   const handleSelectSkill = useCallback((skill: Skill) => {
     dispatch(toggleActiveSkill(skill.id));
@@ -1520,6 +1534,15 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     </div>
   ) : null;
 
+  const selectedTextSnippetPreview = selectedTextSnippets.length > 0 ? (
+    <div className="px-4 pt-3">
+      <SelectedTextSnippetBadge
+        snippets={selectedTextSnippets}
+        onRemove={(snippetId) => dispatch(removeDraftSelectedTextSnippet({ draftKey, snippetId }))}
+      />
+    </div>
+  ) : null;
+
   const compactAttachmentPreview = hasAttachments ? (
     <div className="mb-2 max-h-[164px] overflow-y-auto rounded-xl bg-black/[0.035] p-2 dark:bg-white/[0.055]">
       {attachmentPreviewContent}
@@ -1651,6 +1674,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   return (
     <div className="relative">
       {!isLarge && compactAttachmentPreview}
+      {!isLarge && selectedTextSnippetPreview}
       {imageVisionHint && (
         <div className="mb-2 flex items-start gap-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
           <ExclamationTriangleIcon className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
@@ -1683,6 +1707,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             <>
               <div className="relative z-10 rounded-2xl border border-border bg-surface shadow-card">
                 {largeAttachmentPreview}
+                {selectedTextSnippetPreview}
                 {activeSkillContextRow}
                 {renderMentionTextarea({
                   rows: 2,
@@ -1789,6 +1814,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
           ) : (
             <>
               {largeAttachmentPreview}
+              {selectedTextSnippetPreview}
               {activeSkillContextRow}
               {renderMentionTextarea({
                 rows: 2,

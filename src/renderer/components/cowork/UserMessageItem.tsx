@@ -2,6 +2,7 @@ import { PhotoIcon } from '@heroicons/react/24/outline';
 import React, { useCallback, useMemo, useState } from 'react';
 
 import type { CoworkImageAttachmentPreview } from '../../../shared/cowork/imageAttachments';
+import type { CoworkSelectedTextSnippet } from '../../../shared/cowork/selectedText';
 import type { KitReference } from '../../../shared/kit/constants';
 import { i18nService } from '../../services/i18n';
 import { buildKitReferences } from '../../services/kitCapability';
@@ -22,6 +23,7 @@ import {
   getMessageModelLabel,
   messageMetaClassName,
 } from './messageDisplayUtils';
+import SelectedTextSnippetBadge from './SelectedTextSnippetBadge';
 
 // ── CopyButton (local) ──────────────────────────────────────────────────────
 
@@ -166,7 +168,8 @@ const UserMessageItem: React.FC<{
   skills: Skill[];
   marketplaceKits?: MarketplaceKit[];
   onReEdit?: (message: CoworkMessage) => void;
-}> = React.memo(({ message, skills, marketplaceKits = [], onReEdit }) => {
+  onLocateSelectedText?: (sourceMessageId: string) => void;
+}> = React.memo(({ message, skills, marketplaceKits = [], onReEdit, onLocateSelectedText }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [expandedImage, setExpandedImage] = useState<ImagePreviewSource | null>(null);
   const modelLabel = getMessageModelLabel(message.metadata);
@@ -198,6 +201,7 @@ const UserMessageItem: React.FC<{
     ? metadataKitReferences
     : buildKitReferences(messageKitIds, marketplaceKits);
 
+  const selectedTextSnippets = (metadata?.selectedTextSnippets ?? []) as CoworkSelectedTextSnippet[];
   const imageAttachmentPreviews = Array.isArray(metadata?.imageAttachmentPreviews)
     ? metadata.imageAttachmentPreviews as CoworkImageAttachmentPreview[]
     : [];
@@ -221,6 +225,15 @@ const UserMessageItem: React.FC<{
           <div className="flex items-start gap-3 flex-row-reverse">
             <div className="w-full min-w-0 flex flex-col items-end">
               <div className="w-fit max-w-full rounded-2xl px-4 py-2.5 bg-surface text-foreground shadow-subtle">
+                {selectedTextSnippets.length > 0 && (
+                  <div className={(displayContent?.trim() || displayImageAttachments.length > 0 || hasCapabilityBadges) ? 'mb-2' : ''}>
+                    <SelectedTextSnippetBadge
+                      snippets={selectedTextSnippets}
+                      align="right"
+                      onLocate={onLocateSelectedText}
+                    />
+                  </div>
+                )}
                 {hasCapabilityBadges && (
                   <div className={(displayContent?.trim() || displayImageAttachments.length > 0) ? 'mb-2' : ''}>
                     <UserMessageCapabilityBadges

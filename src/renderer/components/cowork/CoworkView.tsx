@@ -4,6 +4,7 @@ import { useDispatch,useSelector } from 'react-redux';
 
 import { buildSessionTitleFromInput } from '../../../common/sessionTitle';
 import { buildCoworkImageAttachmentPreviews } from '../../../shared/cowork/imageAttachments';
+import type { CoworkSelectedTextSnippet } from '../../../shared/cowork/selectedText';
 import { agentService } from '../../services/agent';
 import { coworkService } from '../../services/cowork';
 import { i18nService } from '../../services/i18n';
@@ -236,7 +237,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
 
-  const handleStartSession = async (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], mediaReferences?: MediaAttachmentRef[]): Promise<boolean | void> => {
+  const handleStartSession = async (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], mediaReferences?: MediaAttachmentRef[], selectedTextSnippets?: CoworkSelectedTextSnippet[]): Promise<boolean | void> => {
     console.log('[CoworkView] handleStartSession: imageAttachments diagnosis', {
       hasImageAttachments: !!imageAttachments,
       count: imageAttachments?.length ?? 0,
@@ -247,7 +248,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
       return false;
     }
     // Prevent duplicate submissions
-    if (isStartingRef.current) return;
+    if (isStartingRef.current) return false;
     isStartingRef.current = true;
     const requestId = ++startRequestIdRef.current;
     pendingStartRef.current = { requestId, cancelled: false, cancellationAction: null };
@@ -272,7 +273,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
             ...buildApiConfigNotice(apiConfig.error),
           });
           isStartingRef.current = false;
-          return;
+          return false;
         }
       } catch (error) {
         console.error('Failed to check cowork API config:', error);
@@ -319,7 +320,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
             type: 'user',
             content: prompt,
             timestamp: now,
-            metadata: (directSkillIds.length > 0 || sessionKitIds.length > 0 || imageAttachmentPreviews?.length)
+            metadata: (directSkillIds.length > 0 || sessionKitIds.length > 0 || imageAttachmentPreviews?.length || (selectedTextSnippets && selectedTextSnippets.length > 0))
               ? {
                 ...(directSkillIds.length > 0 ? { skillIds: directSkillIds } : {}),
                 ...(sessionKitIds.length > 0 ? {
@@ -327,6 +328,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
                   kitReferences,
                   resolvedKitCapabilities,
                 } : {}),
+                ...(selectedTextSnippets && selectedTextSnippets.length > 0 ? { selectedTextSnippets } : {}),
                 ...(imageAttachmentPreviews?.length ? { imageAttachmentPreviews } : {}),
               }
               : undefined,
@@ -373,6 +375,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
         imageAttachments,
         mediaSelection: mediaSelection && mediaSelection.mode !== 'none' ? mediaSelection : undefined,
         mediaReferences,
+        selectedTextSnippets,
       });
 
       if (!startedSession && startError) {
@@ -387,7 +390,10 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
           },
         }));
         dispatch(updateSessionStatus({ sessionId: tempSessionId, status: 'error' }));
-        return;
+        return false;
+      }
+      if (!startedSession) {
+        return false;
       }
 
       // Stop immediately if user cancelled while startup request was in flight.
@@ -405,7 +411,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
     }
   };
 
-  const handleContinueSession = async (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], mediaReferences?: MediaAttachmentRef[]) => {
+  const handleContinueSession = async (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], mediaReferences?: MediaAttachmentRef[], selectedTextSnippets?: CoworkSelectedTextSnippet[]) => {
     if (!currentSession) return false;
     // Prevent duplicate submissions
     if (isContinuingRef.current) return false;
@@ -450,6 +456,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
         imageAttachments,
         mediaSelection: mediaSelection && mediaSelection.mode !== 'none' ? mediaSelection : undefined,
         mediaReferences,
+        selectedTextSnippets,
       });
       if (sent && (sessionSkillIds.length > 0 || sessionKitIds.length > 0)) {
         dispatch(clearActiveSkills());

@@ -15,6 +15,10 @@ import {
   formatCoworkImageAttachmentLimit,
   validateCoworkImageAttachmentSize,
 } from '../../../shared/cowork/imageAttachments';
+import {
+  buildSelectedTextPromptSection,
+  type CoworkSelectedTextSnippet,
+} from '../../../shared/cowork/selectedText';
 import type {
   KitReference,
   ResolvedKitCapabilities,
@@ -2631,6 +2635,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       agentId: options.agentId,
       mediaSelection: options.mediaSelection,
       mediaReferences: options.mediaReferences,
+      selectedTextSnippets: options.selectedTextSnippets,
     });
   }
 
@@ -2646,6 +2651,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       imageAttachments: options.imageAttachments,
       mediaSelection: options.mediaSelection,
       mediaReferences: options.mediaReferences,
+      selectedTextSnippets: options.selectedTextSnippets,
     });
   }
 
@@ -2927,6 +2933,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       agentId?: string;
       mediaSelection?: CoworkMediaSelection;
       mediaReferences?: CoworkMediaAttachmentRef[];
+      selectedTextSnippets?: CoworkSelectedTextSnippet[];
     },
   ): Promise<void> {
     if (!prompt.trim() && (!options.imageAttachments || options.imageAttachments.length === 0)) {
@@ -2963,7 +2970,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     if (!options.skipInitialUserMessage) {
       const messageSkillIds = options.messageSkillIds ?? options.skillIds;
       const imageAttachmentPreviews = buildCoworkImageAttachmentPreviews(options.imageAttachments);
-      const metadata = (messageSkillIds?.length || options.kitIds?.length || imageAttachmentPreviews?.length)
+      const metadata = (messageSkillIds?.length || options.kitIds?.length || imageAttachmentPreviews?.length || options.selectedTextSnippets?.length)
         ? {
           ...(messageSkillIds?.length ? { skillIds: messageSkillIds } : {}),
           ...(options.kitIds?.length ? {
@@ -2972,8 +2979,15 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
             ...(options.resolvedKitCapabilities ? { resolvedKitCapabilities: options.resolvedKitCapabilities } : {}),
           } : {}),
           ...(imageAttachmentPreviews?.length ? { imageAttachmentPreviews } : {}),
+          ...(options.selectedTextSnippets?.length ? { selectedTextSnippets: options.selectedTextSnippets } : {}),
         }
         : undefined;
+      if (options.selectedTextSnippets?.length) {
+        console.log(
+          `[OpenClawRuntime] persisted ${options.selectedTextSnippets.length} selected text excerpts in `
+          + `local metadata for session ${sessionId}`,
+        );
+      }
       const userMessage = this.store.addMessage(sessionId, {
         type: 'user',
         content: prompt,
@@ -3052,6 +3066,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       outboundSystemPrompt,
       agentId,
       options.mediaReferences,
+      options.selectedTextSnippets,
       firstResponseTiming,
     );
     firstResponseTiming.promptBuildEndedAtMs = Date.now();
@@ -3174,6 +3189,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     systemPrompt?: string,
     agentId?: string,
     mediaReferences?: CoworkMediaAttachmentRef[],
+    selectedTextSnippets?: CoworkSelectedTextSnippet[],
     firstResponseTiming?: FirstResponseTiming,
   ): Promise<string> {
     const normalizedSystemPrompt = (systemPrompt ?? '').trim();
@@ -3206,8 +3222,19 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     if (mediaReferenceSection) {
       sections.push(mediaReferenceSection);
     }
+    const selectedTextSection = buildSelectedTextPromptSection(selectedTextSnippets);
+    if (selectedTextSnippets?.length && selectedTextSection) {
+      console.log(
+        `[OpenClawRuntime] appended ${selectedTextSnippets.length} selected text excerpts with `
+        + `${selectedTextSnippets.reduce((total, snippet) => total + snippet.text.length, 0)} characters `
+        + `to the outbound message for session ${sessionId}`,
+      );
+    }
 
     if (this.bridgedSessions.has(sessionId)) {
+      if (selectedTextSection) {
+        sections.push(selectedTextSection);
+      }
       if (prompt.trim()) {
         sections.push(`[Current user request]\n${prompt}`);
       }
@@ -3254,6 +3281,9 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       }
     }
 
+    if (selectedTextSection) {
+      sections.push(selectedTextSection);
+    }
     if (prompt.trim()) {
       sections.push(`[Current user request]\n${prompt}`);
     }
