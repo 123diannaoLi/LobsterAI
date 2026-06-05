@@ -97,6 +97,38 @@ describe('startAuthLocalCallback', () => {
     expect(body).toContain('electronLogin=success');
   });
 
+  test('allows loopback return_to URLs for local portal development', async () => {
+    const callback = await startAuthLocalCallback({ onCode: () => {} });
+    const returnTo = encodeURIComponent(
+      'http://127.0.0.1:5180/login?source=electron&electronLogin=success',
+    );
+
+    const response = await fetch(
+      `${callback.redirectUri}?return_to=${returnTo}&code=abc123&state=${callback.state}`,
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('window.location.replace');
+    expect(body).toContain('127.0.0.1:5180');
+  });
+
+  test('does not redirect to unsafe return_to URLs', async () => {
+    const callback = await startAuthLocalCallback({ onCode: () => {} });
+    const returnTo = encodeURIComponent(
+      'https://example.com/login?source=electron&electronLogin=success',
+    );
+
+    const response = await fetch(
+      `${callback.redirectUri}?return_to=${returnTo}&code=abc123&state=${callback.state}`,
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).not.toContain('window.location.replace');
+    expect(body).not.toContain('example.com');
+  });
+
   test('rejects callback when state does not match', async () => {
     const codes: string[] = [];
     const callback = await startAuthLocalCallback({
