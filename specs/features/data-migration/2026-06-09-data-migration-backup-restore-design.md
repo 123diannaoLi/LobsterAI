@@ -173,10 +173,8 @@ OpenClaw state 是 Agent 引擎运行态的重要来源，至少包括：
 |------|------|
 | `SKILLs/` | 用户安装或修改的技能 |
 | `third-party-extensions/` | 用户安装的第三方扩展 |
-| `Local Storage/` | Electron renderer 本地状态中不可由 SQLite 覆盖的部分 |
-| `Session Storage/` | 需要保留的 renderer 会话状态 |
-| `Local State`、`Preferences` | Electron/Chromium 基础偏好 |
-| `Shared Dictionary`、`SharedStorage` | Chromium 用户态小文件，体积小且通常可迁移 |
+
+Electron/Chromium profile 数据不作为迁移主数据集。LobsterAI 登录态、模型配置、API key、IM 配置、Agent 和任务历史必须以 SQLite/OpenClaw state 为准；`Local Storage/`、`Session Storage/`、`Local State`、`Preferences`、`Shared Dictionary/`、`SharedStorage*` 这类 profile 文件在 Windows 上可能被 Chromium/LevelDB 持有锁，恢复时应保留目标机现有文件并跳过归档中的同名条目，不能因为它们删除失败而回滚核心数据恢复。
 
 ### 4.2 默认排除的数据
 
@@ -187,6 +185,7 @@ OpenClaw state 是 Agent 引擎运行态的重要来源，至少包括：
 | `Cache/`、`Code Cache/`、`GPUCache/`、`Dawn*Cache/` | Chromium 可重建缓存 |
 | `Service Worker/`、`blob_storage/` | 易变缓存，跨机器价值低 |
 | `Crashpad/`、`logs/` | 诊断和崩溃日志，不属于用户状态 |
+| `Local Storage/`、`Session Storage/`、`Local State`、`Preferences`、`Shared Dictionary/`、`SharedStorage*` | Chromium profile/LevelDB 运行态文件，Windows 上容易被锁；核心用户数据必须来自 SQLite/OpenClaw state |
 | `lockfile`、`Singleton*`、`.com.github.Electron.*` | Electron 运行时锁和临时标记 |
 | `Cookies*`、`DIPS*`、`Network/Cookies*` | Windows 上经常被 Chromium 锁定，且 LobsterAI 登录态应以 SQLite token 为准 |
 | `backups/`、`sqlite-backups/` | 自动备份目录会造成包膨胀和旧数据混淆 |
@@ -207,10 +206,6 @@ lobsterai-backup-20260609-103000.tar.gz
 └── LobsterAI/
     ├── .lobsterai-migration.json
     ├── lobsterai.sqlite
-    ├── Local State
-    ├── Preferences
-    ├── Local Storage/
-    ├── Session Storage/
     ├── SKILLs/
     ├── third-party-extensions/
     └── openclaw/
@@ -397,8 +392,8 @@ staging 目录中的 `lobsterai.sqlite` 必须来自该快照，不能来自 liv
 
 1. renderer 显示全局 loading。
 2. 停止接受新的 Cowork、IM、定时任务和设置写入请求。
-3. 释放原业务 BrowserWindow/renderer 进程持有的 Chromium profile 文件句柄，尤其是 Windows 上的 `Local Storage` LevelDB 目录；主进程必须继续运行并保持单实例锁，不能在恢复完成前退出。
-4. 立即打开一个不使用 LobsterAI `userData` 的专用恢复进度窗口，使用非持久化 session/partition，只展示 loading 和安全提示，不访问 `Local Storage`。
+3. 释放原业务 BrowserWindow/renderer 进程持有的业务句柄；主进程必须继续运行并保持单实例锁，不能在恢复完成前退出。
+4. 立即打开一个不使用 LobsterAI `userData` 的专用恢复进度窗口，使用非持久化 session/partition，只展示 loading 和安全提示。
 5. 停止或暂停 OpenClaw gateway、定时任务服务、IM gateway。
 6. flush 并关闭 SQLite store。
 7. 停止日志之外的所有可写入 userData 的服务。
