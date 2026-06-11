@@ -49,7 +49,12 @@ import SkillIcon from '../icons/SkillIcon';
 import TaskPauseIcon from '../icons/TaskPauseIcon';
 import XMarkIcon from '../icons/XMarkIcon';
 import { ActiveKitBadge, KitsButton } from '../kits';
-import ModelSelector, { ModelAccessPromptKind, ModelAccessPromptModal } from '../ModelSelector';
+import ModelSelector, {
+  ModelAccessPromptKind,
+  ModelAccessPromptModal,
+  type ModelSelectorChangeMeta,
+  ModelSelectorGroup,
+} from '../ModelSelector';
 import { ActiveSkillBadge, SkillsPopover } from '../skills';
 import { resolveAgentModelSelection, resolveEffectiveModel, useAgentSelectedModel } from './agentModelSelection';
 import AttachmentCard from './AttachmentCard';
@@ -1378,10 +1383,17 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         value={agentModelIsInvalid && currentSession?.modelOverride
           ? { id: '__invalid__', name: currentSession.modelOverride.split('/').pop() || currentSession.modelOverride } as Model
           : agentSelectedModel}
-        onChange={async (nextModel) => {
+        onChange={async (nextModel, meta: ModelSelectorChangeMeta) => {
           if (isPatchingModel || isPersistingAgentModel) return;
           if (!nextModel) return;
-          const modelRef = toOpenClawModelRef(nextModel);
+          const selectedModel = meta.group === ModelSelectorGroup.Server
+            ? availableModels.find(model => (
+              model.isServerModel
+              && model.id === nextModel.id
+              && model.accessible !== false
+            )) ?? nextModel
+            : nextModel;
+          const modelRef = toOpenClawModelRef(selectedModel);
           if (sessionId) {
             const requestId = modelPatchRequestIdRef.current + 1;
             modelPatchRequestIdRef.current = requestId;
@@ -1390,6 +1402,9 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
               : '';
 
             setIsPatchingModel(true);
+            console.debug(
+              `[CoworkPromptInput] switching session ${sessionId} to ${modelRef}; selectorGroup=${meta.group} serverModel=${selectedModel.isServerModel === true}`,
+            );
             dispatch(updateCurrentSessionModelOverride({ sessionId, modelOverride: modelRef }));
 
             try {
@@ -1401,22 +1416,25 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                   sessionId,
                   modelOverride: previousModelOverride,
                 }));
+                console.warn(`[CoworkPromptInput] model switch for session ${sessionId} returned no session`);
                 window.dispatchEvent(new CustomEvent('app:showToast', {
                   detail: i18nService.t('coworkModelSwitchFailed'),
                 }));
                 return;
               }
 
+              console.debug(`[CoworkPromptInput] switched session ${sessionId} to ${patchedSession.modelOverride || modelRef}`);
               if (currentAgent && agentModelIsInvalid) {
                 void agentService.updateAgent(currentAgent.id, { model: modelRef });
               }
               void coworkService.refreshContextUsage(sessionId, { notifyCompaction: false });
-            } catch {
+            } catch (error) {
               if (requestId === modelPatchRequestIdRef.current) {
                 dispatch(updateCurrentSessionModelOverride({
                   sessionId,
                   modelOverride: previousModelOverride,
                 }));
+                console.warn(`[CoworkPromptInput] model switch for session ${sessionId} failed:`, error);
                 window.dispatchEvent(new CustomEvent('app:showToast', {
                   detail: i18nService.t('coworkModelSwitchFailed'),
                 }));
@@ -1428,7 +1446,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             }
             return;
           }
-          await persistAgentModelSelection(nextModel);
+          await persistAgentModelSelection(selectedModel);
         }}
       />
       {agentModelIsInvalid && (
