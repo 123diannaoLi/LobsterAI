@@ -208,6 +208,16 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(mainEntry.cwd).toBe(path.resolve(mainAgentWorkingDirectory));
   });
 
+  test('disables OpenClaw remote model pricing refresh in generated config', async () => {
+    const sync = await createSync();
+
+    const result = sync.sync('disable-model-pricing');
+    expect(result.ok).toBe(true);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.models.pricing).toEqual({ enabled: false });
+  });
+
   test('writes model provider env-proxy transport when system proxy is enabled', async () => {
     const { setSystemProxyEnabled } = await import('./systemProxy');
     setSystemProxyEnabled(true);

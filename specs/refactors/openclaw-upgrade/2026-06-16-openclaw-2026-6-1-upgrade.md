@@ -115,13 +115,13 @@ openclaw-empty-sse-data.patch
 | `openclaw-cron-skip-missed-jobs.patch` | 已迁移 | 已迁移到 `v2026.6.1`；让 schema 和 cron runtime 支持 `cron.skipMissedJobs` |
 | `openclaw-deepseek-mimo-reasoning-replay.patch` | 待处理 | 尚未评估；需确认 6.1 reasoning replay 行为是否仍需修补 |
 | `openclaw-deepseek-v4-thinking-mode.patch` | 待处理 | 尚未评估；需确认 DeepSeek V4 thinking mode 支持是否已由上游覆盖 |
-| `openclaw-disable-model-pricing-bootstrap.patch` | 待处理 | 尚未评估；需确认 6.1 是否仍有启动阶段 pricing bootstrap 延迟问题 |
+| `openclaw-disable-model-pricing-bootstrap.patch` | 不再需要迁移 | OpenClaw 6.1 已将 model pricing refresh 改为按 `models.pricing.enabled` gating、lazy import，并在 scheduled services 激活后启动；注意上游默认值是启用，只有显式 `models.pricing.enabled: false` 才会禁用。LobsterAI 当前改为在生成配置中显式写出该字段，并清理已失效的 `OPENCLAW_SKIP_MODEL_PRICING=1` env |
 | `openclaw-empty-sse-data.patch` | 已迁移 | 已迁移到 `v2026.6.1`；补充 OpenAI-compatible completions fetch 包装，过滤空 SSE `data:` frame，并对连续空 frame 设置上限，避免 provider 异常流导致 parser 报错或空转 |
 | `openclaw-extra-body-passthrough.patch` | 不再需要迁移 | OpenClaw 6.1 已在 `src/agents/embedded-agent-runner/extra-params.ts` 支持 `extra_body` / `extraBody`，并已有 `embedded-agent-runner-extraparams.test.ts` 覆盖 payload 合并与非法值跳过；但 thinking 展示不只依赖参数透传，还要求模型元数据明确标记 `supportsThinking` / `reasoning: true` |
-| `openclaw-facade-runtime-static-import.patch` | 待处理 | 尚未评估；需确认 6.1 bundle/运行时是否仍需 static import 规避问题 |
-| `openclaw-gateway-startup-profiler.patch` | 待处理 | 尚未评估；偏诊断能力，需判断是否仍要保留 |
+| `openclaw-facade-runtime-static-import.patch` | 不再需要迁移 | OpenClaw 6.1 已将 facade activation check 的加载逻辑拆分到 facade loader / resolution，并通过 `plugin-module-loader-cache` 复用 plugin source loader；当前 6.1 runtime 构建和本地运行未复现旧 bundle 加载失败。如后续 packaged runtime 的 facade activation check 再失败，再单独重开 |
+| `openclaw-gateway-startup-profiler.patch` | 不再需要迁移 | OpenClaw 6.1 已提供 `OPENCLAW_GATEWAY_STARTUP_TRACE`、`startupTrace.measure()` 与 diagnostics timeline startup spans；旧补丁属于临时启动耗时诊断，不再作为 LobsterAI 必要 patch 保留 |
 | `openclaw-im-bound-agent-run-cwd.patch` | 已迁移 | 已迁移到 `v2026.6.1`；让 schema 和 reply runtime 支持 agent run cwd |
-| `openclaw-jiti-alias-prenormalize.patch` | 待处理 | 尚未评估；需确认 6.1 jiti alias 解析是否仍需预归一化 |
+| `openclaw-jiti-alias-prenormalize.patch` | 不再需要迁移 | OpenClaw 6.1 已在 `sdk-alias.ts` 中内置 `normalizePluginLoaderAliasMapForJiti()`、`Symbol.for("pathe:normalizedAlias")` 标记、按 alias 内容缓存以及 `buildPluginLoaderJitiOptions()` 入口归一化；上游 `sdk-alias.test.ts` 已覆盖 pre-normalize marker 与相同内容复用 |
 | `openclaw-mcp-shared-runtime.patch` | 待处理 | 尚未评估；需确认 MCP runtime 复用需求是否仍存在 |
 | `openclaw-mcp-stdio-process-tree-kill.patch` | 待处理 | 尚未评估；需确认 stdio MCP 进程树清理是否仍需补丁 |
 | `openclaw-memory-atomic-reindex-ebusy-retry.patch` | 待处理 | 尚未评估；需确认 Windows EBUSY retry 是否已由上游覆盖 |
@@ -131,7 +131,7 @@ openclaw-empty-sse-data.patch
 | `openclaw-subagent-cleanup-finalize-best-effort.patch` | 待处理 | 尚未评估；需确认 subagent cleanup/finalize 失败是否仍会影响主流程 |
 | `openclaw-web-fetch-env-proxy.patch` | 不再需要迁移 | 旧补丁字段为 `tools.web.fetch.useEnvProxy`；OpenClaw 6.1 已提供 `tools.web.fetch.useTrustedEnvProxy`、cache key 隔离和 env proxy dispatcher 测试。LobsterAI 当前配置同步不再写出旧字段，也不自动写出新字段 |
 | `openclaw-widen-incomplete-turn-retry-guard.patch` | 待处理 | 尚未评估；需确认 incomplete turn retry guard 是否仍需放宽 |
-| `zz-openclaw-first-response-timing-logs.patch` | 待处理 | 尚未评估；偏诊断日志，需判断是否仍要保留 |
+| `zz-openclaw-first-response-timing-logs.patch` | 不再需要迁移 | 旧补丁只增加首包耗时排查日志，不改变业务行为；当前升级主线不依赖这类 verbose diagnostics，避免继续扩大 OpenClaw patch 面。如后续重新专项排查首包延迟，再临时引入诊断手段 |
 
 ### 3.1 `extra_body` 与 thinking 展示复核
 
@@ -159,6 +159,20 @@ LobsterAI 侧处理边界：`customParams` 只作为厂商请求参数透传到 
 
 2026-06-17 复核 `openclaw-qwen-coding-plan-qwen36-plus.patch` 后确认，OpenClaw 6.1 仍保留内置限制：Qwen Coding Plan endpoint 的默认 catalog 不 advertise `qwen3.6-plus`，且 manifest 中仍有 conditional suppression。但 embedded runner 已新增显式配置优先逻辑：当 `models.providers.qwen.models[]` 中显式声明 `qwen3.6-plus` 时，可以绕过基于 baseUrl 的 conditional suppression。LobsterAI 当前正是显式写 provider model 的集成方式，因此不再迁移旧补丁；若未来改为依赖 OpenClaw 原生 Qwen wizard/default catalog，则需重新评估该结论。
 
+### 3.4 启动、诊断与 loader 性能类旧补丁复核
+
+2026-06-17 复核 `openclaw-gateway-startup-profiler.patch` 后确认，OpenClaw 6.1 已内置 gateway startup trace：入口、CLI run-main 与 gateway server runtime 都可以通过 `OPENCLAW_GATEWAY_STARTUP_TRACE` 输出阶段耗时，`server.impl.ts` 中还通过 `startupTrace.measure()` 写入 startup spans / marks。旧补丁主要用于临时定位启动耗时，不再需要作为 LobsterAI 常驻 patch 迁移。
+
+`zz-openclaw-first-response-timing-logs.patch` 同样属于临时诊断补丁，只在 chat / auto-reply / embedded runner 链路中增加首包耗时日志，不改变运行时语义。当前升级目标是缩小长期 patch 面，因此不继续迁移；如果后续再次专项排查首包延迟，应优先临时打开上游已有 tracing 或另起一次性诊断补丁。
+
+2026-06-17 复核 `openclaw-disable-model-pricing-bootstrap.patch` 后确认，OpenClaw 6.1 已把 pricing refresh 从初始 runtime setup 中拆出：`server-runtime-services.ts` 会按 `models.pricing.enabled` 判断、lazy import pricing cache，并在 scheduled services 激活后启动；上游测试已覆盖禁用 pricing 不导入、初始 setup 不启动 pricing、scheduled services 激活后再启动，以及停止后 import 才完成也不会启动的场景。因此旧的 `OPENCLAW_SKIP_MODEL_PRICING` 环境变量补丁不再迁移。需要注意，OpenClaw 6.1 的默认判断是 `config.models?.pricing?.enabled !== false`，所以字段缺失时默认仍为启用；从 `C:\Users\yangwn\AppData\Roaming\LobsterAI\openclaw\logs\gateway-2026-06-17.log` 看，当天 `model-pricing`、`pricing bootstrap`、`pricing refresh`、`OpenRouter pricing`、`LiteLLM pricing` 均无命中，且多次 gateway ready 后的请求健康检查通常在几十毫秒到约 1.5 秒内完成，未看到 pricing 导致的 15s 级启动卡顿。
+
+为保持旧补丁“完全禁用远端价格刷新”的业务效果，LobsterAI 当前选择在配置生成阶段显式写出 `models.pricing.enabled: false`，并清理 `openclawEngineManager.ts` 中已失效的 `OPENCLAW_SKIP_MODEL_PRICING=1` 环境变量。这样禁用逻辑留在 LobsterAI 侧配置中，不再需要 patch OpenClaw。
+
+2026-06-17 复核 `openclaw-facade-runtime-static-import.patch` 后确认，OpenClaw 6.1 已重构 facade activation check 的运行时加载路径：`facade-runtime.ts` 通过 facade loader / resolution 与 `plugin-module-loader-cache` 复用 plugin source loader，当前 6.1 runtime 构建和本地运行未复现旧版需要 static import 规避的 bundle 加载失败。因此该补丁不再迁移；风险是 packaged runtime 中若再次出现 facade activation check 加载异常，需要基于 6.1 的新 loader cache 重新定位，而不是直接套回旧补丁。
+
+2026-06-17 复核 `openclaw-jiti-alias-prenormalize.patch` 后确认，旧补丁目标是减少启动阶段大量 `createJiti()` 调用时 pathe `normalizeAliases()` 的重复排序与解析成本。OpenClaw 6.1 已在 `src/plugins/sdk-alias.ts` 中内置更完整的实现：`buildPluginLoaderJitiOptions()` 会先调用 `normalizePluginLoaderAliasMapForJiti()`，该函数设置同一个 `Symbol.for("pathe:normalizedAlias")` marker，按 alias 内容生成 cache key 并复用归一化结果，同时处理 chained alias、Windows drive target 与 cyclic alias 边界。上游 `sdk-alias.test.ts` 已覆盖“pre-normalizes and marks alias maps for source transforms”及相同内容复用，因此该启动性能补丁不再需要迁移。
+
 ## 4. 实施步骤
 
 ### 4.1 已完成
@@ -180,6 +194,8 @@ LobsterAI 侧处理边界：`customParams` 只作为厂商请求参数透传到 
 15. 修复 Qwen 标准 provider id：LobsterAI 侧改为向 OpenClaw 写出 `qwen/qwen3.6-plus`，避免 `qwen-portal` 被 OpenClaw 6.1 视为 `qwen-oauth` alias 后触发 `Unknown model: qwen-oauth/qwen3.6-plus`。
 16. 复核两个 Qwen 旧补丁：确认 `openclaw-qwen-vision-catalog-fallback.patch` 与 `openclaw-qwen-coding-plan-qwen36-plus.patch` 在 LobsterAI 显式 provider model 路径下均不再需要迁移。
 17. 补齐自定义模型 `supportsThinking` 配置入口：模型编辑弹窗新增“支持思考输出”开关，保存后写入模型元数据，并继续保持 `customParams` 只作为 `extra_body` 透传参数。
+18. 复核启动/诊断/构建规避/loader 性能类旧补丁：确认 `openclaw-gateway-startup-profiler.patch`、`zz-openclaw-first-response-timing-logs.patch`、`openclaw-disable-model-pricing-bootstrap.patch`、`openclaw-facade-runtime-static-import.patch`、`openclaw-jiti-alias-prenormalize.patch` 均不再需要迁移。
+19. 将远端 model pricing refresh 的禁用方式从失效的 `OPENCLAW_SKIP_MODEL_PRICING=1` env 迁移为 LobsterAI 生成配置中的 `models.pricing.enabled: false`。
 
 ### 4.2 待处理
 

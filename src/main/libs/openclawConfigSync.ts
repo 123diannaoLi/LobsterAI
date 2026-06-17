@@ -1524,6 +1524,7 @@ loopDetection: MANAGED_TOOL_LOOP_DETECTION,
       },
       models: {
         mode: 'replace',
+        pricing: { enabled: false },
         providers: allProvidersMap,
       },
       agents: {

@@ -503,11 +503,6 @@ export class OpenClawEngineManager extends EventEmitter {
       // bundled-channel-entry contract.  Third-party plugins (in extensions/)
       // are discovered separately via plugins.load.paths in openclaw.json.
       OPENCLAW_BUNDLED_PLUGINS_DIR: path.join(runtime.root, 'dist', 'extensions'),
-      // Disable model-pricing bootstrap to avoid startup delays.  The gateway
-      // fetches https://openrouter.ai on startup which times out (15s) in
-      // regions with slow external API access.  See openclaw/openclaw#60116.
-      // Requires the v2026.4.5 source patch (scripts/patches/v2026.4.5/).
-      OPENCLAW_SKIP_MODEL_PRICING: '1',
       // Disable Bonjour/mDNS LAN discovery advertising.  LobsterAI is a
       // desktop app with a loopback-only gateway — LAN service broadcast is
       // unnecessary and its watchdog can flood stderr with re-advertise
