@@ -19,12 +19,17 @@ export const LogReporterActionPrefix = {
 } as const;
 
 export const LogReporterAction = {
+  AgentEngineMaintenanceAction: 'lobsterai_agent_engine_maintenance_action',
+  AgentEngineSettingChanged: 'lobsterai_agent_engine_setting_changed',
   AppStarted: 'lobsterai_app_started',
+  AppearanceSettingChanged: 'lobsterai_appearance_setting_changed',
   ExpertKitSelected: 'lobsterai_expert_kit_selected',
+  GeneralSettingChanged: 'lobsterai_general_setting_changed',
   McpEnabled: 'lobsterai_mcp_enabled',
   ModelSelected: 'lobsterai_model_selected',
   PlanModeEnabled: 'lobsterai_plan_mode_enabled',
   SkillEnabled: 'lobsterai_skill_enabled',
+  UsageAnalyticsEnabled: 'lobsterai_usage_analytics_enabled',
 } as const;
 
 export const LogReporterEntry = {

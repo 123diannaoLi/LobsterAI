@@ -97,7 +97,7 @@ export const LogReporterActionPrefix = {
 
 ### 2.4 事件定义
 
-所有事件名称通过 `action` 字段上报，命名统一使用 `lobsterai_` 前缀。当前事件不上传 API Key、MCP env/header、文件路径、对话内容或本地日志内容。涉及自定义技能、MCP、专家套件和模型时，当前仅上报 ID、名称、来源、类型和数量等结构化信息。
+所有事件名称通过 `action` 字段上报，命名统一使用 `lobsterai_` 前缀。已实现和规划中的事件不上传 API Key、MCP env/header、文件路径、对话内容或本地日志内容。涉及自定义技能、MCP、专家套件和模型时，当前仅上报 ID、名称、来源、类型和数量等结构化信息。
 
 #### 2.4.1 `lobsterai_plan_mode_enabled`
 
@@ -174,6 +174,71 @@ export const LogReporterActionPrefix = {
   - `sessionId`：string，当前会话 ID；仅 `target=session` 时发送。
   - `isServerModel`：boolean，是否为服务端套餐模型。
 - 隐私边界：不上传 provider API Key、base URL、鉴权类型或其他模型凭证配置。
+
+#### 2.4.7 `lobsterai_general_setting_changed`
+
+- 状态：已实现。
+- 触发时机：用户在「设置 -> 通用」修改设置并成功生效后发送。未保存、保存失败或系统 API 调用失败不发送。
+- 事件含义：统计通用设置项的实际变更情况。
+- 生效语义：
+  - `autoLaunch` 和 `preventSleep` 是立即生效项，应在对应系统 API 返回成功后发送。
+  - `language`、`useSystemProxy`、`sqliteAutoBackupEnabled`、`taskCompletionNotificationsEnabled`、`skipMissedJobs` 等配置项应在设置页保存成功后，根据保存前后的 diff 逐项发送。
+  - `usageAnalyticsEnabled=false` 不通过该事件发送，避免用户选择关闭使用统计后仍继续上报关闭动作。
+- 业务参数：
+  - `settingKey`：string，变更的通用设置项 key。当前规划取值包括 `language`、`autoLaunch`、`preventSleep`、`useSystemProxy`、`sqliteAutoBackupEnabled`、`taskCompletionNotificationsEnabled`、`skipMissedJobs`。
+  - `settingValue`：string 或 boolean，变更后的基础值。布尔设置使用 `true` / `false`；语言使用 `zh` / `en`。
+  - `previousValue`：string 或 boolean，变更前的基础值；无法可靠获取时不发送。
+  - `source`：string，触发来源。当前固定为 `settings_general`。
+- 暂不记录：快捷键具体组合、代理地址、API Key、base URL、文件路径等可能包含用户偏好或敏感信息的内容。
+
+#### 2.4.8 `lobsterai_usage_analytics_enabled`
+
+- 状态：已实现。
+- 触发时机：用户在「设置 -> 通用」中将「帮助改进 LobsterAI」从关闭重新开启，并成功保存后发送。
+- 事件含义：统计用户主动重新开启基础使用统计的情况。
+- 业务参数：
+  - `source`：string，触发来源。当前固定为 `settings_general`。
+- 隐私边界：
+  - 用户将 `usageAnalyticsEnabled` 从开启改为关闭时不发送任何日志请求。
+  - 重新开启事件只在保存成功后发送，不在用户点击但未保存时发送。
+
+#### 2.4.9 `lobsterai_appearance_setting_changed`
+
+- 状态：已实现。
+- 触发时机：用户在「设置 -> 外观」修改设置并保存成功后，根据保存前后的 diff 逐项发送。未保存或保存失败不发送。
+- 事件含义：统计外观设置项的实际变更情况。
+- 业务参数：
+  - `settingKey`：string，变更的外观设置项 key。当前取值包括 `theme`、`themeId`。
+  - `settingValue`：string，变更后的基础值。`theme` 当前为 `light`、`dark` 或 `system`；`themeId` 为主题色 ID，例如 `classic-light`、`midnight`、`cyber`。
+  - `previousValue`：string，变更前的基础值；无法可靠获取时不发送。
+  - `source`：string，触发来源。当前固定为 `settings_appearance`。
+- 隐私边界：不上传主题 token、颜色值、CSS 变量或其它样式细节。
+
+#### 2.4.10 `lobsterai_agent_engine_setting_changed`
+
+- 状态：已实现。
+- 触发时机：用户在「设置 -> Agent 引擎」相关配置保存成功后，根据保存前后的 diff 逐项发送。未保存或保存失败不发送。
+- 事件含义：统计 Agent 引擎相关设置的实际变更情况。
+- 业务参数：
+  - `settingKey`：string，变更的 Agent 引擎设置项 key。当前取值包括 `agentEngine`、`openClawSessionKeepAlive`。
+  - `settingValue`：string，变更后的基础值。
+  - `previousValue`：string，变更前的基础值；无法可靠获取时不发送。
+  - `source`：string，触发来源。当前固定为 `settings_agent_engine`。
+- 暂不记录：OpenClaw gateway URL、本地 runtime 路径、配置文件路径、工作区路径、token、key 或 env。
+- 说明：`skipMissedJobs` 当前归入「设置 -> 通用」的 `lobsterai_general_setting_changed`，避免同一次保存重复上报。
+
+#### 2.4.11 `lobsterai_agent_engine_maintenance_action`
+
+- 状态：已实现。
+- 触发时机：用户在「设置 -> Agent 引擎」主动执行维护动作，并且动作完成后发送。用户取消文件选择等未完成动作不发送。
+- 事件含义：统计 Agent 引擎维护动作的结果。
+- 业务参数：
+  - `actionType`：string，维护动作类型。当前取值包括 `repair_gateway_state`、`backup_data`、`restore_data`。
+  - `result`：string，动作结果。当前取值包括 `success`、`failed`、`started`。
+  - `errorCode`：string，失败分类；无法识别时为 `unknown`。仅失败时发送。
+  - `sizeBytes`：number，备份文件大小；仅 `backup_data` 成功且可获取时发送。
+  - `source`：string，触发来源。当前固定为 `settings_agent_engine`。
+- 隐私边界：不上传备份文件路径、导入文件路径、OpenClaw gateway URL、错误详情文本或本地配置内容。
 
 ### 2.5 请求流程
 

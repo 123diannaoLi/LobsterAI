@@ -20,6 +20,7 @@ import { coworkService } from '../services/cowork';
 import { decryptSecret, decryptWithPassword, EncryptedPayload, encryptWithPassword, PasswordEncryptedPayload } from '../services/encryption';
 import { i18nService, LanguageType } from '../services/i18n';
 import { imService } from '../services/im';
+import { LogReporterAction, reportYdAnalyzer } from '../services/logReporter';
 import { formatShortcutForDisplay, getShortcutConflictSignature, matchesShortcut } from '../services/shortcuts';
 import { themeService } from '../services/theme';
 import type { RootState } from '../store';
@@ -146,6 +147,71 @@ const SETTINGS_TAB_SHORTCUT_ACTIONS: Partial<Record<ShortcutAction, TabType>> = 
   [ShortcutAction.OpenSettingsPlugins]: 'plugins',
   [ShortcutAction.OpenSettingsShortcuts]: 'shortcuts',
   [ShortcutAction.OpenSettingsAbout]: 'about',
+};
+
+const SettingsAnalyticsSource = {
+  AgentEngine: 'settings_agent_engine',
+  Appearance: 'settings_appearance',
+  General: 'settings_general',
+} as const;
+
+type SettingsAnalyticsValue = string | boolean | number;
+
+const reportGeneralSettingChanged = (
+  settingKey: string,
+  settingValue: SettingsAnalyticsValue,
+  previousValue?: SettingsAnalyticsValue,
+): void => {
+  void reportYdAnalyzer({
+    action: LogReporterAction.GeneralSettingChanged,
+    settingKey,
+    settingValue,
+    previousValue,
+    source: SettingsAnalyticsSource.General,
+  });
+};
+
+const reportAppearanceSettingChanged = (
+  settingKey: string,
+  settingValue: SettingsAnalyticsValue,
+  previousValue?: SettingsAnalyticsValue,
+): void => {
+  void reportYdAnalyzer({
+    action: LogReporterAction.AppearanceSettingChanged,
+    settingKey,
+    settingValue,
+    previousValue,
+    source: SettingsAnalyticsSource.Appearance,
+  });
+};
+
+const reportAgentEngineSettingChanged = (
+  settingKey: string,
+  settingValue: SettingsAnalyticsValue,
+  previousValue?: SettingsAnalyticsValue,
+): void => {
+  void reportYdAnalyzer({
+    action: LogReporterAction.AgentEngineSettingChanged,
+    settingKey,
+    settingValue,
+    previousValue,
+    source: SettingsAnalyticsSource.AgentEngine,
+  });
+};
+
+const reportAgentEngineMaintenanceAction = (
+  actionType: string,
+  result: string,
+  options: { errorCode?: string; sizeBytes?: number } = {},
+): void => {
+  void reportYdAnalyzer({
+    action: LogReporterAction.AgentEngineMaintenanceAction,
+    actionType,
+    result,
+    errorCode: options.errorCode,
+    sizeBytes: options.sizeBytes,
+    source: SettingsAnalyticsSource.AgentEngine,
+  });
 };
 
 const AGENT_TASK_SLOT_COMMANDS: ShortcutCommandDefinition[] = [
@@ -1976,11 +2042,17 @@ const Settings: React.FC<SettingsProps> = ({
     try {
       const result = await coworkService.repairOpenClawGatewayState();
       setOpenClawRepairResult(result);
+      reportAgentEngineMaintenanceAction(
+        'repair_gateway_state',
+        result.success ? 'success' : 'failed',
+        result.success ? {} : { errorCode: result.errorCode ?? 'unknown' },
+      );
     } catch (repairError) {
       setOpenClawRepairResult({
         success: false,
         error: repairError instanceof Error ? repairError.message : i18nService.t('openClawRepairFailed'),
       });
+      reportAgentEngineMaintenanceAction('repair_gateway_state', 'failed', { errorCode: 'unknown' });
     } finally {
       setIsRepairingOpenClaw(false);
     }
@@ -2036,6 +2108,7 @@ const Settings: React.FC<SettingsProps> = ({
       const result = await window.electron.openclaw.dataMigration.backup();
       if (!result.success) {
         setError(result.error || i18nService.t('openClawDataBackupFailed'));
+        reportAgentEngineMaintenanceAction('backup_data', 'failed', { errorCode: 'unknown' });
         return;
       }
       if (result.canceled) {
@@ -2045,8 +2118,12 @@ const Settings: React.FC<SettingsProps> = ({
         setOpenClawDataBackupResult({ path: result.path, sizeBytes: result.sizeBytes });
       }
       setNoticeMessage(i18nService.t('openClawDataBackupSuccess'));
+      reportAgentEngineMaintenanceAction('backup_data', 'success', {
+        sizeBytes: result.sizeBytes,
+      });
     } catch (backupError) {
       setError(backupError instanceof Error ? backupError.message : i18nService.t('openClawDataBackupFailed'));
+      reportAgentEngineMaintenanceAction('backup_data', 'failed', { errorCode: 'unknown' });
     } finally {
       setIsBackingUpOpenClawData(false);
     }
@@ -2064,6 +2141,7 @@ const Settings: React.FC<SettingsProps> = ({
       const result = await window.electron.openclaw.dataMigration.restore();
       if (!result.success) {
         setError(result.error || i18nService.t('openClawDataMigrationFailed'));
+        reportAgentEngineMaintenanceAction('restore_data', 'failed', { errorCode: 'unknown' });
         return;
       }
       if (result.canceled) {
@@ -2072,9 +2150,13 @@ const Settings: React.FC<SettingsProps> = ({
       if (result.scheduledRestart) {
         keepLoadingUntilRestart = true;
         setNoticeMessage(i18nService.t('openClawDataMigrationRestarting'));
+        reportAgentEngineMaintenanceAction('restore_data', 'started');
+      } else {
+        reportAgentEngineMaintenanceAction('restore_data', 'success');
       }
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : i18nService.t('openClawDataMigrationFailed'));
+      reportAgentEngineMaintenanceAction('restore_data', 'failed', { errorCode: 'unknown' });
     } finally {
       if (!keepLoadingUntilRestart) {
         setIsRestoringOpenClawData(false);
@@ -2311,6 +2393,15 @@ const Settings: React.FC<SettingsProps> = ({
         extraArgs: [],
         webFetch: defaultBrowserWebAccessConfig.webFetch,
       });
+      const previousConfig = configService.getConfig();
+      const previousSkipMissedJobs = coworkConfig.skipMissedJobs ?? true;
+      const previousAgentEngine = coworkConfig.agentEngine || 'openclaw';
+      const previousOpenClawSessionKeepAlive = coworkConfig.openClawSessionPolicy?.keepAlive
+        || OpenClawSessionKeepAliveValues.ThirtyDays;
+      const previousTaskCompletionNotificationsEnabled = normalizeNotificationSettings(
+        previousConfig.notificationSettings,
+      ).taskCompletionNotificationsEnabled;
+      const previousThemeId = initialThemeIdRef.current;
 
       await configService.updateConfig({
         api: {
@@ -2329,7 +2420,7 @@ const Settings: React.FC<SettingsProps> = ({
         browserWebAccess: normalizedBrowserWebAccess,
         shortcuts,
         app: {
-          ...configService.getConfig().app,
+          ...previousConfig.app,
           testMode,
         },
       });
@@ -2412,6 +2503,54 @@ const Settings: React.FC<SettingsProps> = ({
         if (pendingChanges) {
           await window.electron?.plugins.batchSave(pendingChanges);
           pluginsSettingsRef.current.resetDirty();
+        }
+      }
+
+      if (usageAnalyticsEnabled) {
+        if (previousConfig.language !== language) {
+          reportGeneralSettingChanged('language', language, previousConfig.language);
+        }
+        if ((previousConfig.useSystemProxy ?? false) !== useSystemProxy) {
+          reportGeneralSettingChanged('useSystemProxy', useSystemProxy, previousConfig.useSystemProxy ?? false);
+        }
+        if ((previousConfig.sqliteAutoBackupEnabled === true) !== sqliteAutoBackupEnabled) {
+          reportGeneralSettingChanged(
+            'sqliteAutoBackupEnabled',
+            sqliteAutoBackupEnabled,
+            previousConfig.sqliteAutoBackupEnabled === true,
+          );
+        }
+        if (previousTaskCompletionNotificationsEnabled !== taskCompletionNotificationsEnabled) {
+          reportGeneralSettingChanged(
+            'taskCompletionNotificationsEnabled',
+            taskCompletionNotificationsEnabled,
+            previousTaskCompletionNotificationsEnabled,
+          );
+        }
+        if (previousSkipMissedJobs !== skipMissedJobs) {
+          reportGeneralSettingChanged('skipMissedJobs', skipMissedJobs, previousSkipMissedJobs);
+        }
+        if (previousConfig.theme !== theme) {
+          reportAppearanceSettingChanged('theme', theme, previousConfig.theme);
+        }
+        if (previousThemeId !== themeId) {
+          reportAppearanceSettingChanged('themeId', themeId, previousThemeId);
+        }
+        if (previousAgentEngine !== coworkAgentEngine) {
+          reportAgentEngineSettingChanged('agentEngine', coworkAgentEngine, previousAgentEngine);
+        }
+        if (previousOpenClawSessionKeepAlive !== openClawSessionKeepAlive) {
+          reportAgentEngineSettingChanged(
+            'openClawSessionKeepAlive',
+            openClawSessionKeepAlive,
+            previousOpenClawSessionKeepAlive,
+          );
+        }
+        if (previousConfig.usageAnalyticsEnabled === false) {
+          void reportYdAnalyzer({
+            action: LogReporterAction.UsageAnalyticsEnabled,
+            source: SettingsAnalyticsSource.General,
+          });
         }
       }
 
@@ -3411,7 +3550,9 @@ const Settings: React.FC<SettingsProps> = ({
                 try {
                   const result = await window.electron.autoLaunch.set(next);
                   if (result.success) {
+                    const previous = autoLaunch;
                     setAutoLaunchState(next);
+                    reportGeneralSettingChanged('autoLaunch', next, previous);
                   } else {
                     setError(result.error || 'Failed to update auto-launch setting');
                   }
@@ -3436,7 +3577,9 @@ const Settings: React.FC<SettingsProps> = ({
                 try {
                   const result = await window.electron.preventSleep.set(next);
                   if (result.success) {
+                    const previous = preventSleep;
                     setPreventSleepState(next);
+                    reportGeneralSettingChanged('preventSleep', next, previous);
                   } else {
                     setError(result.error || 'Failed to update prevent-sleep setting');
                   }
