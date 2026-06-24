@@ -582,6 +582,42 @@ export const LogReporterActionPrefix = {
   - 不上传搜索词、任务标题、sessionId、agentId、agentName、消息内容、创建/更新时间或本地路径。
   - 不记录每次输入变化，避免产生高频噪音和隐私风险。
 
+#### 2.4.31 `lobsterai_agent_settings_action`
+
+- 状态：已实现。
+- 触发时机：用户打开 Agent 编辑弹窗、切换弹窗 tab、保存配置、关闭弹窗或处理未保存变更确认时发送。
+- 事件含义：统计 Agent 编辑弹窗内的主要配置行为，补齐侧边栏 `agent_edit` 之后的弹窗内操作路径。
+- 业务参数：
+  - `source`：string，触发来源。当前固定为 `agent_settings_panel`。
+  - `actionType`：string，动作类型。当前取值包括 `open`、`close`、`tab_change`、`save_submit`、`save_success`、`save_failed`、`discard_confirm_open`、`discard_confirm_submit`、`discard_confirm_cancel`。
+  - `agentType`：string，相关 Agent 类型。当前取值为 `main` 或 `custom`。
+  - `activeTab`：string，触发时当前 tab。当前取值包括 `identity`、`prompt`、`user`、`skills`、`im`。
+  - `targetTab`：string，目标 tab；仅 `tab_change` 时发送。
+  - `isDirty`：boolean，触发时弹窗内容是否存在未保存变更。
+  - `changedFieldCount`：number，触发时发生变更的字段数量；仅保存和未保存确认相关动作发送。
+  - `changedFields`：string，触发时发生变更的字段 key 列表，以英文逗号连接；当前可能包含 `name`、`description`、`systemPrompt`、`identity`、`userInfo`、`icon`、`model`、`workingDirectory`、`skillIds`、`imBindings`。
+  - `skillCount`：number，当前 Agent 已选择技能数量。
+  - `imBindingCount`：number，当前 Agent 显式绑定 IM 渠道数量。
+  - `hasModel`：boolean，当前是否选择模型。
+  - `hasWorkingDirectory`：boolean，当前是否设置工作目录。
+  - `result`：string，保存结果。当前取值为 `success` 或 `failed`；仅保存完成后发送。
+  - `modelId`：string，当前选择模型 ID；仅保存相关动作发送。
+  - `modelName`：string，当前选择模型展示名称；仅保存相关动作发送。
+  - `modelSource`：string，模型来源分类。当前取值为 `package` 或 `custom`；仅保存相关动作发送。
+  - `providerKey`：string，当前模型所属 provider key；仅保存相关动作发送。
+  - `provider`：string，当前模型所属 provider 展示名称；仅保存相关动作发送。
+  - `selectorGroup`：string，当前模型选择器分组，取值为 `server` 或 `user`；仅保存相关动作发送。
+  - `skillIds`：string，当前选择技能 ID 列表，以英文逗号连接；仅保存相关动作发送。
+  - `skillNames`：string，当前选择技能展示名称列表，以英文逗号连接；仅保存相关动作发送。
+  - `builtInSkillCount`：number，当前选择技能中的内置技能数量；仅保存相关动作发送。
+  - `customSkillCount`：number，当前选择技能中的非内置技能数量；仅保存相关动作发送。
+  - `imPlatforms`：string，当前显式绑定 IM 平台列表，以英文逗号连接；仅保存相关动作发送。
+- 隐私边界：
+  - 不上传 Agent 名称、简介、头像值、system prompt、identity、userInfo、工作目录路径、IM 渠道 key 或错误详情。
+  - 保存相关动作会上传模型 ID/名称、技能 ID/名称和 IM 平台名，用于分析 Agent 配置行为。
+  - 文本编辑只记录字段是否发生变更，不记录内容长度或文本内容。
+  - 关闭和切换 tab 只记录行为摘要，避免对每次输入做高频上报。
+
 ### 2.5 请求流程
 
 ```text

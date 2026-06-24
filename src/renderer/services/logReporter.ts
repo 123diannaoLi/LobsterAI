@@ -19,6 +19,7 @@ export const LogReporterActionPrefix = {
 } as const;
 
 export const LogReporterAction = {
+  AgentSettingsAction: 'lobsterai_agent_settings_action',
   AgentEngineMaintenanceAction: 'lobsterai_agent_engine_maintenance_action',
   AgentEngineSettingChanged: 'lobsterai_agent_engine_setting_changed',
   AboutAction: 'lobsterai_about_action',
