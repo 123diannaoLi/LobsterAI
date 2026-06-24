@@ -511,6 +511,22 @@ export const LogReporterActionPrefix = {
   - `missingEntryCount`：number，导出日志时缺失的日志项数量；仅导出成功且存在缺失项信息时发送。
 - 隐私边界：不上传联系邮箱、外链 URL、导出日志路径、日志内容、更新包 URL、错误详情或本地文件信息。
 
+#### 2.4.28 `lobsterai_account_menu_action`
+
+- 状态：已实现。
+- 触发时机：用户在首页左下角「我的」入口执行主动动作后发送。包括未登录点击登录、已登录打开/关闭账号菜单、展开/收起剩余额度、打开用量概览、打开充值页、打开邀请页、退出登录。
+- 事件含义：统计账号菜单入口的使用情况和常用路径。
+- 业务参数：
+  - `source`：string，触发来源。当前固定为 `home_account_menu`。
+  - `actionType`：string，动作类型。当前取值包括 `login`、`open_menu`、`close_menu`、`expand_credits`、`collapse_credits`、`open_usage_overview`、`open_recharge`、`open_invitation`、`logout`。
+  - `result`：string，动作结果。当前取值为 `success` 或 `failed`；仅登录、打开外链和退出登录等异步动作发送。
+  - `isLoggedIn`：boolean，触发动作时是否处于登录态。
+  - `hasCredits`：boolean，当前账号摘要中是否存在额度明细。
+  - `creditItemCount`：number，当前账号摘要中的额度明细数量。
+- 隐私边界：
+  - 不上传手机号、手机号后四位、昵称、头像 URL、具体剩余额度数值、额度明细 label、额度类型、到期时间、Portal URL、登录 URL 或退出登录错误详情。
+  - 额度相关字段只记录是否有额度明细和明细数量，不记录资产金额。
+
 ### 2.5 请求流程
 
 ```text

@@ -22,6 +22,7 @@ export const LogReporterAction = {
   AgentEngineMaintenanceAction: 'lobsterai_agent_engine_maintenance_action',
   AgentEngineSettingChanged: 'lobsterai_agent_engine_setting_changed',
   AboutAction: 'lobsterai_about_action',
+  AccountMenuAction: 'lobsterai_account_menu_action',
   AppStarted: 'lobsterai_app_started',
   AppearanceSettingChanged: 'lobsterai_appearance_setting_changed',
   BrowserSettingChanged: 'lobsterai_browser_setting_changed',
