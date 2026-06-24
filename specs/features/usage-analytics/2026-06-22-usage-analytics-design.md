@@ -157,6 +157,116 @@ export const LogReporterActionPrefix = {
   - `mcpServerCount`：number，该专家套件关联的 MCP 服务数量；无法解析时不发送。
   - `connectorCount`：number，该专家套件关联的连接器数量；无法解析时不发送。
 
+#### 2.4.5.1 `lobsterai_expert_kit_action`
+
+- 状态：已实现。
+- 触发时机：用户在「专家套件」页面搜索、清空搜索、打开详情、返回列表、安装、卸载、打开卸载确认、取消卸载确认、点击「试着问问」、因未安装打开安装提示，以及安装后继续提问时发送。
+- 事件含义：统计专家套件市场浏览、详情转化、安装/卸载结果和示例提问转化。
+- 业务参数：
+  - `source`：string，触发来源。当前取值为 `kits_manager`。
+  - `actionType`：string，动作类型。当前取值包括 `search`、`clear_search`、`open_detail`、`back_to_list`、`install_submit`、`install_success`、`install_failed`、`uninstall_confirm_open`、`uninstall_confirm_cancel`、`uninstall_submit`、`uninstall_success`、`uninstall_failed`、`try_asking`、`install_prompt_open`、`install_prompt_cancel`、`install_and_try_submit`。
+  - `kitId`：string，专家套件稳定 ID。
+  - `kitName`：string，专家套件展示名称。
+  - `kitSource`：string，专家套件来源分类。当前取值为 `lobsterai-kits` 或 `installed`。
+  - `isInstalled`：boolean，当前本地是否已安装该专家套件。
+  - `version`：string，市场版本。
+  - `installedVersion`：string，本地已安装版本。
+  - `currentVersion`：string，市场当前版本；存在更新时发送。
+  - `hasUpdate`：boolean，是否存在可重装/更新提示。
+  - `skillCount`：number，套件关联技能数量。
+  - `skillIds`：string，套件关联技能 ID 列表，以英文逗号连接。
+  - `skillNames`：string，套件关联技能展示名称列表，以英文逗号连接。
+  - `mcpServerCount`：number，套件关联 MCP 服务数量。
+  - `connectorCount`：number，套件关联连接器数量。
+  - `tryAskingIndex`：number，点击的示例提问序号。
+  - `hasTryAsking`：boolean，套件是否包含示例提问。
+  - `searchKeywordLength`：number，搜索关键词长度。
+  - `resultCount`：number，当前搜索结果数量。
+  - `result`：string，动作结果。当前取值包括 `success`、`failed`。
+  - `errorCode`：string，失败分类；不上传错误详情。
+- 隐私边界：
+  - 不上传套件 bundle URL、示例提问完整文本、安装错误详情或本地路径。
+  - 会上传专家套件 ID/名称、关联技能 ID/名称、版本和能力数量，用于分析用户对不同能力包的兴趣与转化。
+
+#### 2.4.5.2 `lobsterai_skill_action`
+
+- 状态：已实现。
+- 触发时机：用户在「技能」页面切换 tab、搜索、清空搜索、切换市场标签、打开添加菜单、上传 zip/folder、打开远程导入、提交远程导入、创建技能入口、启用/关闭技能、市场安装、升级、全部升级、删除确认、删除结果、安全审计弹窗和审计操作时发送。
+- 事件含义：统计技能管理页的发现、安装、升级、启用、删除、安全审计和创建入口转化。
+- 业务参数：
+  - `source`：string，触发来源。当前取值为 `skills_manager`。
+  - `actionType`：string，动作类型。当前取值包括 `tab_change`、`search`、`clear_search`、`market_tag_change`、`add_menu_open`、`upload_zip_open`、`upload_folder_open`、`remote_import_open`、`remote_import_close`、`remote_import_submit`、`import_submit`、`import_success`、`import_failed`、`create_by_chat`、`create_by_chat_missing_skill`、`create_by_chat_disabled_skill`、`toggle_enabled`、`toggle_enabled_success`、`toggle_enabled_failed`、`open_installed_detail`、`open_marketplace_detail`、`close_installed_detail`、`close_marketplace_detail`、`marketplace_install_submit`、`marketplace_install_success`、`marketplace_install_failed`、`upgrade_submit`、`upgrade_success`、`upgrade_failed`、`upgrade_all_submit`、`upgrade_all_finished`、`delete_confirm_open`、`delete_confirm_cancel`、`delete_success`、`delete_failed`、`security_report_open`、`security_report_action`、`sync_from_openclaw_submit`、`sync_from_openclaw_success`、`sync_from_openclaw_failed`、`manual_openclaw_sync`。
+  - `activeTab`：string，当前 tab。当前取值为 `installed` 或 `marketplace`。
+  - `targetTab`：string，目标 tab。
+  - `activeMarketTag`：string，当前市场标签。
+  - `targetMarketTag`：string，目标市场标签。
+  - `searchKeywordLength`：number，搜索关键词长度。
+  - `resultCount`：number，当前结果数量。
+  - `skillId`：string，技能稳定 ID。
+  - `skillName`：string，技能展示名称。
+  - `skillSource`：string，技能来源分类。当前取值包括 `built_in`、`official`、`custom`、`marketplace`。
+  - `isBuiltIn`：boolean，是否为应用内置技能。
+  - `isOfficial`：boolean，是否为官方技能。
+  - `version`：string，当前技能版本。
+  - `marketplaceVersion`：string，市场版本。
+  - `hasUpdate`：boolean，是否存在可升级版本。
+  - `tags`：string，市场标签 ID 列表，以英文逗号连接。
+  - `sourceType`：string，导入来源类型。当前取值包括 `zip`、`folder`、`remote`、`github`、`clawhub`、`marketplace`。
+  - `importTab`：string，远程导入 tab。当前取值为 `github` 或 `clawhub`。
+  - `riskLevel`：string，安全审计风险等级。
+  - `findingsCount`：number，安全审计发现数量。
+  - `securityAction`：string，用户对安全审计弹窗的操作。当前取值为 `install`、`installDisabled` 或 `cancel`。
+  - `targetEnabled`：boolean，技能开关后的目标状态。
+  - `updatableCount`：number，全部升级时可升级技能数量。
+  - `result`：string，动作结果。当前取值包括 `success`、`failed`、`cancel`。
+  - `errorCode`：string，失败分类；不上传错误详情。
+- 隐私边界：
+  - 不上传 `SKILL.md` 正文、prompt、`skillPath`、zip/folder 本地路径、远程导入 URL 原文、安全审计 findings 详情或错误详情。
+  - 会上传技能 ID/名称、市场标签、版本、来源、安全风险等级和发现数量，用于分析技能安装转化、升级转化和安全审计影响。
+
+#### 2.4.5.3 `lobsterai_mcp_action`
+
+- 状态：已实现。
+- 触发时机：用户在「MCP」页面切换 tab、搜索、清空搜索、切换市场分类、打开市场安装表单、打开自定义新增表单、打开编辑表单、保存表单、启用/关闭、删除确认、删除结果和重试 launch resolution 时发送。
+- 事件含义：统计 MCP 市场发现、自定义配置、启用转化、删除和启动修复链路。
+- 业务参数：
+  - `source`：string，触发来源。当前取值为 `mcp_manager`。
+  - `actionType`：string，动作类型。当前取值包括 `tab_change`、`search`、`clear_search`、`category_change`、`marketplace_install_open`、`custom_create_open`、`edit_open`、`form_close`、`create_submit`、`create_success`、`create_failed`、`edit_submit`、`edit_success`、`edit_failed`、`toggle_enabled`、`toggle_enabled_success`、`toggle_enabled_failed`、`delete_confirm_open`、`delete_confirm_cancel`、`delete_success`、`delete_failed`、`launch_retry_submit`、`launch_retry_success`、`launch_retry_failed`。
+  - `activeTab`：string，当前 tab。当前取值为 `installed`、`marketplace` 或 `custom`。
+  - `targetTab`：string，目标 tab。
+  - `activeCategory`：string，当前市场分类。
+  - `targetCategory`：string，目标市场分类。
+  - `searchKeywordLength`：number，搜索关键词长度。
+  - `resultCount`：number，当前结果数量。
+  - `mcpId`：string，MCP 服务稳定 ID；自定义保存前缺失时不发送。
+  - `mcpName`：string，MCP 服务展示名称。
+  - `mcpSource`：string，MCP 来源分类。当前取值为 `built_in`、`marketplace` 或 `custom`。
+  - `registryId`：string，市场/注册表 ID。
+  - `category`：string，市场分类。
+  - `transportType`：string，MCP 传输类型。当前取值为 `stdio`、`sse` 或 `http`。
+  - `isBuiltIn`：boolean，是否为内置/市场安装服务。
+  - `enabled`：boolean，当前是否启用。
+  - `targetEnabled`：boolean，开关后的目标状态。
+  - `requiredEnvKeyCount`：number，必填环境变量 key 数量。
+  - `optionalEnvKeyCount`：number，选填环境变量 key 数量。
+  - `hasRequiredEnv`：boolean，是否存在必填环境变量。
+  - `hasOptionalEnv`：boolean，是否存在选填环境变量。
+  - `envKeyCount`：number，已配置 env key 数量；不上传 env 值。
+  - `headerKeyCount`：number，已配置 header key 数量；不上传 header 值。
+  - `argCount`：number，stdio 参数数量；不上传参数内容。
+  - `hasUrl`：boolean，HTTP/SSE 配置是否存在 URL；不上传 URL。
+  - `launchStatus`：string，启动解析状态。当前取值包括 `pending`、`installing`、`ready`、`failed`、`unsupported`。
+  - `resolverKind`：string，启动解析器类型。当前取值包括 `npx`、`uvx`、`python`、`raw`。
+  - `packageName`：string，解析到的包名。
+  - `requestedVersion`：string，请求版本。
+  - `resolvedVersion`：string，解析版本。
+  - `hasLaunchError`：boolean，是否存在启动解析错误。
+  - `result`：string，动作结果。当前取值包括 `success`、`failed`。
+  - `errorCode`：string，失败分类；不上传错误详情。
+- 隐私边界：
+  - 不上传 MCP `command` 完整内容、`args` 内容、`env` 值、`headers` 值、`url`、`installDir`、`sourceFingerprint`、launch error 详情或本地路径。
+  - 会上传 registry/category/transport/package/launch 状态和 key 数量，用于分析 MCP 安装配置阻塞点和启动失败类型。
+
 #### 2.4.6 `lobsterai_model_selected`
 
 - 状态：已实现。
