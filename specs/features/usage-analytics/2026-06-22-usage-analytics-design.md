@@ -530,17 +530,40 @@ export const LogReporterActionPrefix = {
 #### 2.4.29 `lobsterai_sidebar_action`
 
 - 状态：已实现。
-- 触发时机：用户在首页左侧边栏执行主动动作后发送。包括新建任务、打开任务搜索、切换到定时任务/专家套件/技能/MCP、折叠或展开侧边栏、从 Agent 任务列表选择任务。
-- 事件含义：统计首页侧边栏主要入口和任务列表选择行为。
+- 触发时机：用户在首页左侧边栏执行主动动作后发送。包括顶部导航入口、折叠/展开侧边栏、Agent 行操作、历史任务列表点击、任务菜单、展开更多/收起、批量操作和子任务操作。
+- 事件含义：统计首页侧边栏主要入口、Agent/任务列表和批量操作的使用情况。
 - 业务参数：
   - `source`：string，触发来源。当前取值包括 `home_sidebar`、`home_agent_sidebar`。
-  - `actionType`：string，动作类型。当前取值包括 `new_task`、`open_search`、`open_scheduled_tasks`、`open_kits`、`open_skills`、`open_mcp`、`collapse_sidebar`、`expand_sidebar`、`select_task`。
+  - `actionType`：string，动作类型。当前取值包括：
+    - 顶部入口：`new_task`、`open_search`、`open_scheduled_tasks`、`open_kits`、`open_skills`、`open_mcp`、`collapse_sidebar`、`expand_sidebar`。
+    - Agent 行：`agent_header_click`、`agent_create_task`、`agent_menu_open`、`agent_edit`、`agent_pin_toggle`、`agent_delete_confirm_open`、`agent_delete_cancel`、`agent_delete_submit`、`agent_delete_success`、`agent_delete_failed`。
+    - 历史任务：`select_task`、`task_menu_open`、`task_pin_toggle`、`task_rename_start`、`task_rename_cancel`、`task_rename_submit`、`task_share_open`、`task_delete_confirm_open`、`task_delete_cancel`、`task_delete_submit`、`task_delete_success`、`task_delete_failed`。
+    - 列表加载：`task_list_expand_more`、`task_list_collapse`、`task_list_retry_load`。
+    - 批量操作：`batch_mode_enter`、`batch_mode_exit`、`batch_item_toggle`、`batch_select_all_toggle`、`batch_delete_confirm_open`、`batch_delete_cancel`、`batch_delete_submit`、`batch_delete_success`、`batch_delete_failed`。
+    - 子任务：`select_subagent_task`、`subagent_delete_confirm_open`、`subagent_delete_cancel`、`subagent_delete_submit`、`subagent_delete_success`、`subagent_delete_failed`。
   - `activeView`：string，触发时当前主视图。当前取值包括 `cowork`、`skills`、`scheduledTasks`、`kits`、`mcp`。
   - `isCollapsed`：boolean，触发时侧边栏是否折叠；仅顶部侧边栏入口发送。
-  - `agentType`：string，任务所属 Agent 类型。当前取值为 `main` 或 `custom`；仅选择任务时发送。
-  - `isCurrentSession`：boolean，被选择任务是否为当前会话；仅选择任务时发送。
-  - `taskStatus`：string，被选择任务的状态摘要；仅选择任务时发送。
-- 隐私边界：不上传任务标题、sessionId、agentId、agentName、消息内容、创建/更新时间、用户输入或本地路径。
+  - `agentType`：string，相关 Agent 类型。当前取值为 `main` 或 `custom`。
+  - `isPinned`：boolean，相关 Agent 或任务触发前是否已置顶；仅置顶、菜单和相关行操作按需发送。
+  - `targetPinned`：boolean，置顶切换后的目标状态；仅置顶切换时发送。
+  - `isExpanded`：boolean，Agent 行触发前是否处于展开状态；仅 Agent 行点击/菜单按需发送。
+  - `visibleTaskCount`：number，当前 Agent 可见任务数量；仅展开更多、收起和加载重试时发送。
+  - `isCurrentSession`：boolean，被选择或操作的任务是否为当前会话；仅任务相关操作按需发送。
+  - `taskStatus`：string，被选择或操作任务的状态摘要；仅任务相关操作按需发送。
+  - `hasActiveSubagent`：boolean，当前任务是否有正在查看的子任务；仅任务行操作按需发送。
+  - `subagentStatus`：string，被选择或操作子任务的状态摘要；仅子任务相关操作发送。
+  - `isCurrentSubagent`：boolean，被选择或操作子任务是否为当前子任务；仅子任务相关操作发送。
+  - `selectedCount`：number，批量模式当前选中项目数；仅批量操作发送。
+  - `selectableCount`：number，批量模式当前可选项目数；仅批量操作发送。
+  - `selectedSessionCount`：number，批量模式当前选中的主任务数量；仅批量删除提交/结果发送。
+  - `selectedSubagentCount`：number，批量模式当前选中的子任务数量；仅批量删除提交/结果发送。
+  - `targetSelected`：boolean，批量单项切换后的目标选中状态；仅 `batch_item_toggle` 发送。
+  - `isSelectAllChecked`：boolean，全选切换后的目标状态；仅 `batch_select_all_toggle` 发送。
+  - `result`：string，异步操作结果。当前取值为 `success` 或 `failed`；仅删除、置顶、重命名等完成后按需发送。
+- 隐私边界：
+  - 不上传任务标题、sessionId、subagentId、runId、agentId、agentName、消息内容、创建/更新时间、用户输入或本地路径。
+  - 重命名只记录开始、取消和提交结果，不上传新旧标题。
+  - 批量操作只记录数量和类型，不上传具体条目 ID。
 
 #### 2.4.30 `lobsterai_task_search_action`
 

@@ -67,13 +67,34 @@ const activeSidebarNavItemClassName =
   `${sidebarNavItemClassName} bg-black/[0.06] hover:bg-black/[0.06] dark:bg-white/[0.07] dark:hover:bg-white/[0.07]`;
 const sidebarCreateIconClassName = 'h-4 w-4 shrink-0';
 
+type SidebarAnalyticsSource = 'home_sidebar' | 'home_agent_sidebar';
+
+interface SidebarAnalyticsOptions {
+  activeView?: SidebarProps['activeView'];
+  agentType?: 'main' | 'custom';
+  hasActiveSubagent?: boolean;
+  isCollapsed?: boolean;
+  isCurrentSession?: boolean;
+  isCurrentSubagent?: boolean;
+  isExpanded?: boolean;
+  isPinned?: boolean;
+  isSelectAllChecked?: boolean;
+  result?: 'success' | 'failed';
+  selectedCount?: number;
+  selectedSessionCount?: number;
+  selectedSubagentCount?: number;
+  selectableCount?: number;
+  source?: SidebarAnalyticsSource;
+  subagentStatus?: string;
+  targetPinned?: boolean;
+  targetSelected?: boolean;
+  taskStatus?: string;
+  visibleTaskCount?: number;
+}
+
 const reportSidebarAction = (
   actionType: string,
-  options: {
-    activeView?: SidebarProps['activeView'];
-    isCollapsed?: boolean;
-    source?: 'home_sidebar' | 'home_agent_sidebar';
-  } = {},
+  options: SidebarAnalyticsOptions = {},
 ): void => {
   console.debug('[Sidebar] reporting sidebar action analytics');
   void reportYdAnalyzer({
@@ -81,7 +102,24 @@ const reportSidebarAction = (
     source: options.source ?? 'home_sidebar',
     actionType,
     activeView: options.activeView,
+    agentType: options.agentType,
+    hasActiveSubagent: options.hasActiveSubagent,
     isCollapsed: options.isCollapsed,
+    isCurrentSession: options.isCurrentSession,
+    isCurrentSubagent: options.isCurrentSubagent,
+    isExpanded: options.isExpanded,
+    isPinned: options.isPinned,
+    isSelectAllChecked: options.isSelectAllChecked,
+    result: options.result,
+    selectedCount: options.selectedCount,
+    selectedSessionCount: options.selectedSessionCount,
+    selectedSubagentCount: options.selectedSubagentCount,
+    selectableCount: options.selectableCount,
+    subagentStatus: options.subagentStatus,
+    targetPinned: options.targetPinned,
+    targetSelected: options.targetSelected,
+    taskStatus: options.taskStatus,
+    visibleTaskCount: options.visibleTaskCount,
   });
 };
 
@@ -135,6 +173,24 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isBatchSelectAllChecked =
     batchSelectableItems.length > 0 && selectedBatchSelectableCount === batchSelectableItems.length;
   const batchAgentName = batchAgentId ? getAgentDisplayNameById(batchAgentId, agents) : null;
+  const getBatchSelectionSummary = useCallback(() => {
+    const selectedItems = Array.from(selectedKeys)
+      .filter((key) => batchSelectableKeySet.size === 0 || batchSelectableKeySet.has(key))
+      .map((key) => batchSelectableItemByKey.get(key))
+      .filter((item): item is AgentSidebarBatchItem => Boolean(item));
+    const selectedSessionCount = selectedItems.filter(
+      (item) => item.kind === AgentSidebarBatchItemKind.Session,
+    ).length;
+    const selectedSubagentCount = selectedItems.filter(
+      (item) => item.kind === AgentSidebarBatchItemKind.Subagent,
+    ).length;
+    return {
+      selectedCount: selectedItems.length,
+      selectedSessionCount,
+      selectedSubagentCount,
+      selectableCount: batchSelectableItems.length,
+    };
+  }, [batchSelectableItemByKey, batchSelectableItems.length, batchSelectableKeySet, selectedKeys]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -203,6 +259,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleEnterBatchMode = useCallback((sessionId: string, agentId: string) => {
+    reportSidebarAction('batch_mode_enter', {
+      source: 'home_agent_sidebar',
+      agentType: normalizeAgentId(agentId) === AgentId.Main ? 'main' : 'custom',
+      selectedCount: 1,
+    });
     setIsBatchMode(true);
     setBatchAgentId(agentId);
     setBatchSelectableItems([]);
@@ -210,12 +271,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   const handleExitBatchMode = useCallback(() => {
+    reportSidebarAction('batch_mode_exit', {
+      source: 'home_agent_sidebar',
+      agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+      ...getBatchSelectionSummary(),
+    });
     setIsBatchMode(false);
     setBatchAgentId(null);
     setBatchSelectableItems([]);
     setSelectedKeys(new Set());
     setShowBatchDeleteConfirm(false);
-  }, []);
+  }, [batchAgentId, getBatchSelectionSummary]);
 
   const handleBatchSelectableItemsChange = useCallback((items: AgentSidebarBatchItem[]) => {
     setBatchSelectableItems(items);
@@ -257,30 +323,57 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (batchAgentId && normalizeAgentId(agentId) !== batchAgentId) return;
     setSelectedKeys(prev => {
       const next = new Set(prev);
+      const targetSelected = !next.has(selectionKey);
       if (next.has(selectionKey)) {
         next.delete(selectionKey);
       } else {
         next.add(selectionKey);
       }
+      reportSidebarAction('batch_item_toggle', {
+        source: 'home_agent_sidebar',
+        agentType: normalizeAgentId(agentId) === AgentId.Main ? 'main' : 'custom',
+        selectedCount: next.size,
+        selectableCount: batchSelectableItems.length,
+        targetSelected,
+      });
       return next;
     });
-  }, [batchAgentId]);
+  }, [batchAgentId, batchSelectableItems.length]);
 
   const handleSelectAll = useCallback(() => {
     if (batchSelectableItems.length === 0) return;
     setSelectedKeys(prev => {
       const selectedVisibleCount = batchSelectableItems.filter((item) => prev.has(item.key)).length;
       if (selectedVisibleCount === batchSelectableItems.length) {
+        reportSidebarAction('batch_select_all_toggle', {
+          source: 'home_agent_sidebar',
+          agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+          selectedCount: 0,
+          selectableCount: batchSelectableItems.length,
+          isSelectAllChecked: false,
+        });
         return new Set();
       }
+      reportSidebarAction('batch_select_all_toggle', {
+        source: 'home_agent_sidebar',
+        agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+        selectedCount: batchSelectableItems.length,
+        selectableCount: batchSelectableItems.length,
+        isSelectAllChecked: true,
+      });
       return new Set(batchSelectableItems.map((item) => item.key));
     });
-  }, [batchSelectableItems]);
+  }, [batchAgentId, batchSelectableItems]);
 
   const handleBatchDeleteClick = useCallback(() => {
     if (selectedKeys.size === 0) return;
+    reportSidebarAction('batch_delete_confirm_open', {
+      source: 'home_agent_sidebar',
+      agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+      ...getBatchSelectionSummary(),
+    });
     setShowBatchDeleteConfirm(true);
-  }, [selectedKeys.size]);
+  }, [batchAgentId, getBatchSelectionSummary, selectedKeys.size]);
 
   const handleBatchDelete = useCallback(async () => {
     if (selectedKeys.size === 0) return;
@@ -296,6 +389,17 @@ const Sidebar: React.FC<SidebarProps> = ({
     const sessionIds = items
       .filter((item) => item.kind === AgentSidebarBatchItemKind.Session)
       .map((item) => item.sessionId);
+    const selectedSessionCount = sessionIds.length;
+    const selectedSubagentCount = subagentItems.length;
+
+    reportSidebarAction('batch_delete_submit', {
+      source: 'home_agent_sidebar',
+      agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+      selectedCount: items.length,
+      selectedSessionCount,
+      selectedSubagentCount,
+      selectableCount: batchSelectableItems.length,
+    });
 
     const deletedSubagents: AgentSidebarSubagentBatchItem[] = [];
     for (const item of subagentItems) {
@@ -310,7 +414,27 @@ const Sidebar: React.FC<SidebarProps> = ({
       deletedSessions = await coworkService.deleteSessions(sessionIds);
     }
 
-    if (!deletedSessions && deletedSubagents.length === 0) return;
+    if (!deletedSessions && deletedSubagents.length === 0) {
+      reportSidebarAction('batch_delete_failed', {
+        source: 'home_agent_sidebar',
+        agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+        result: 'failed',
+        selectedCount: items.length,
+        selectedSessionCount,
+        selectedSubagentCount,
+        selectableCount: batchSelectableItems.length,
+      });
+      return;
+    }
+    reportSidebarAction('batch_delete_success', {
+      source: 'home_agent_sidebar',
+      agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+      result: 'success',
+      selectedCount: items.length,
+      selectedSessionCount,
+      selectedSubagentCount,
+      selectableCount: batchSelectableItems.length,
+    });
     if (deletedSessions) {
       setDeletedSessionIds(sessionIds);
     }
@@ -318,7 +442,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       setDeletedSubagentItems(deletedSubagents);
     }
     handleExitBatchMode();
-  }, [batchSelectableItemByKey, batchSelectableKeySet, selectedKeys, handleExitBatchMode]);
+  }, [
+    batchAgentId,
+    batchSelectableItemByKey,
+    batchSelectableItems.length,
+    batchSelectableKeySet,
+    selectedKeys,
+    handleExitBatchMode,
+  ]);
 
   const handleResizeStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (isCollapsed) return;
@@ -520,6 +651,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                 ...params,
               });
             }}
+            onSidebarAction={(actionType, params) => {
+              reportSidebarAction(actionType, {
+                source: 'home_agent_sidebar',
+                ...params,
+              });
+            }}
             onToggleSelection={handleToggleSelection}
             onEnterBatchMode={handleEnterBatchMode}
             onBatchSelectableItemsChange={handleBatchSelectableItemsChange}
@@ -618,7 +755,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Batch Delete Confirmation Modal */}
       {showBatchDeleteConfirm && (
         <Modal
-          onClose={() => setShowBatchDeleteConfirm(false)}
+          onClose={() => {
+            reportSidebarAction('batch_delete_cancel', {
+              source: 'home_agent_sidebar',
+              agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+              ...getBatchSelectionSummary(),
+            });
+            setShowBatchDeleteConfirm(false);
+          }}
           className="w-full max-w-sm mx-4 bg-surface rounded-2xl shadow-xl overflow-hidden"
         >
           <div className="flex items-center gap-3 px-5 py-4">
@@ -638,7 +782,14 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-border">
             <button
-              onClick={() => setShowBatchDeleteConfirm(false)}
+              onClick={() => {
+                reportSidebarAction('batch_delete_cancel', {
+                  source: 'home_agent_sidebar',
+                  agentType: batchAgentId === AgentId.Main ? 'main' : 'custom',
+                  ...getBatchSelectionSummary(),
+                });
+                setShowBatchDeleteConfirm(false);
+              }}
               className="px-4 py-2 text-sm font-medium rounded-lg text-secondary hover:bg-surface-raised transition-colors"
             >
               {i18nService.t('cancel')}
