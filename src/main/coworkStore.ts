@@ -15,6 +15,10 @@ import {
   type CoworkForkMode as CoworkForkModeType,
 } from '../shared/cowork/constants';
 import {
+  type CoworkMessageRailIndexItem,
+  getCoworkRailPreview,
+} from '../shared/cowork/rail';
+import {
   type CoworkSelectedTextSnippet,
   CoworkSelectedTextSource,
 } from '../shared/cowork/selectedText';
@@ -1591,6 +1595,53 @@ export class CoworkStore {
       content: row.content,
       timestamp: row.created_at,
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    }));
+  }
+
+  getSessionMessageRailIndex(sessionId: string): CoworkMessageRailIndexItem[] {
+    const rows = this.getAll<{
+      id: string;
+      type: string;
+      preview_content: string;
+      content_len: number;
+      created_at: number;
+      sequence: number | null;
+      message_offset: number;
+    }>(
+      `
+      SELECT id, type, preview_content, content_len, created_at, sequence, message_offset
+      FROM (
+        SELECT
+          id,
+          type,
+          substr(content, 1, 2000) as preview_content,
+          length(content) as content_len,
+          created_at,
+          sequence,
+          ROW_NUMBER() OVER (
+            ORDER BY COALESCE(sequence, created_at) ASC, created_at ASC, ROWID ASC
+          ) - 1 as message_offset
+        FROM cowork_messages
+        WHERE session_id = ?
+      )
+      WHERE type IN ('user', 'assistant')
+        AND TRIM(content) <> ''
+      ORDER BY message_offset ASC
+    `,
+      [sessionId],
+    );
+
+    return rows.map((row, index) => ({
+      messageId: row.id,
+      type: row.type as 'user' | 'assistant',
+      sequence: row.sequence,
+      messageOffset: row.message_offset,
+      timestamp: row.created_at,
+      preview: getCoworkRailPreview(
+        row.preview_content,
+        row.type === 'user' ? `Turn ${index + 1}` : 'LobsterAI',
+      ),
+      contentLen: row.content_len,
     }));
   }
 

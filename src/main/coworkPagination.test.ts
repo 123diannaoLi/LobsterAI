@@ -71,6 +71,31 @@ function getPagedSessionMessages(db: Database, sessionId: string, limit: number,
   );
 }
 
+/** Mirror of getSessionMessageRailIndex(sessionId) */
+function getSessionMessageRailIndex(db: Database, sessionId: string) {
+  return getAll<{ id: string; type: string; content: string; message_offset: number }>(
+    db,
+    `SELECT id, type, content, message_offset
+     FROM (
+       SELECT
+         id,
+         type,
+         content,
+         sequence,
+         created_at,
+         ROW_NUMBER() OVER (
+           ORDER BY COALESCE(sequence, created_at) ASC, created_at ASC, ROWID ASC
+         ) - 1 as message_offset
+       FROM cowork_messages
+       WHERE session_id = ?
+     )
+     WHERE type IN ('user', 'assistant')
+       AND TRIM(content) <> ''
+     ORDER BY message_offset ASC`,
+    [sessionId],
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Schema setup
 // ---------------------------------------------------------------------------
@@ -306,4 +331,32 @@ test('getPagedSessionMessages: session with 0 messages returns empty array', () 
 test('getPagedSessionMessages: offset beyond total returns empty', () => {
   const msgs = getPagedSessionMessages(db, sessionWithManyMessagesId, 50, 999);
   expect(msgs.length).toBe(0);
+});
+
+test('getSessionMessageRailIndex: messageOffset follows full message order with tool messages', () => {
+  const now = Date.now();
+  const sessionId = uuidv4();
+  db.run(
+    `INSERT INTO cowork_sessions (id, title, status, pinned, cwd, created_at, updated_at)
+     VALUES (?, 'Mixed Rail Session', 'idle', 0, '/tmp', ?, ?)`,
+    [sessionId, now, now],
+  );
+
+  [
+    ['mixed-user-1', 'user', 'First user'],
+    ['mixed-tool-1', 'tool_use', 'Tool call'],
+    ['mixed-assistant-1', 'assistant', 'First assistant'],
+    ['mixed-system-1', 'system', 'System note'],
+    ['mixed-user-2', 'user', 'Second user'],
+  ].forEach(([id, type, content], index) => {
+    db.run(
+      `INSERT INTO cowork_messages (id, session_id, type, content, created_at, sequence)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, sessionId, type, content, now + index, index + 1],
+    );
+  });
+
+  const rail = getSessionMessageRailIndex(db, sessionId);
+  expect(rail.map(item => item.id)).toEqual(['mixed-user-1', 'mixed-assistant-1', 'mixed-user-2']);
+  expect(rail.map(item => item.message_offset)).toEqual([0, 2, 4]);
 });
