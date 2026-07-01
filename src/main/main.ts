@@ -274,7 +274,6 @@ import {
 import { collectReferencedEnvVarNames, pickReferencedSecretEnvVars } from './libs/openclawSecretEnv';
 import { startOpenClawTokenProxy, stopOpenClawTokenProxy } from './libs/openclawTokenProxy';
 import { migrateMainAgentWorkspace } from './libs/openclawWorkspaceMigration';
-import { isHiddenUserPluginId } from './libs/pluginManager';
 import { ensurePythonRuntimeReady } from './libs/pythonRuntime';
 import { sanitizeUrlForLog, serializeForLog } from './libs/sanitizeForLog';
 import { packageNodeServiceDeployment } from './libs/shareDeployment/nodeServiceDeploymentPackager';
@@ -321,8 +320,9 @@ import {
   saveOpenClawSessionPolicyConfig,
 } from './openclawSessionPolicy/store';
 import { registerVoiceInputPermissionHandler } from './permissions/voiceInputPermission';
-import { SkillManager } from './skillManager';
-import { getSkillServiceManager } from './skillServices';
+import { isHiddenUserPluginId } from './plugins/pluginManager';
+import { SkillManager } from './skills/skillManager';
+import { getSkillServiceManager } from './skills/skillServices';
 import { SqliteStore } from './sqliteStore';
 import { StartupProfiler } from './startupProfiler';
 import { SubagentMessageStore } from './subagentMessageStore';
