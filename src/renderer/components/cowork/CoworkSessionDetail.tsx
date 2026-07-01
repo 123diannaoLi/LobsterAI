@@ -96,6 +96,7 @@ import {
   getStreamingActivityStatusText,
   hasRenderableAssistantContent,
   MEDIA_TOKEN_DISPLAY_RE,
+  type ToolGroupItem,
 } from './messageDisplayUtils';
 import { parseProposedPlanBlock } from './proposedPlanParser';
 import { buildSelectedKitContextPrompt } from './selectedKitContextPrompt';
@@ -1705,22 +1706,19 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       : null
   ), [selectedSubagent, subagents]);
 
-  const getTurnSubagents = useCallback((turn: ConversationTurn): SubagentSessionSummary[] => {
+  const getToolGroupSubagents = useCallback((group: ToolGroupItem): SubagentSessionSummary[] => {
     const seen = new Set<string>();
     const result: SubagentSessionSummary[] = [];
-    for (const item of turn.assistantItems) {
-      if (item.type !== 'tool_group') continue;
-      const candidateIds = [
-        item.group.toolUse.id,
-        item.group.toolUse.metadata?.toolUseId,
-      ].filter((value): value is string => typeof value === 'string' && value.length > 0);
-      for (const candidateId of candidateIds) {
-        if (seen.has(candidateId)) continue;
-        const subagent = subagentsByRunId.get(candidateId);
-        if (!subagent) continue;
-        seen.add(candidateId);
-        result.push(subagent);
-      }
+    const candidateIds = [
+      group.toolUse.id,
+      group.toolUse.metadata?.toolUseId,
+    ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+    for (const candidateId of candidateIds) {
+      if (seen.has(candidateId)) continue;
+      const subagent = subagentsByRunId.get(candidateId);
+      if (!subagent) continue;
+      seen.add(candidateId);
+      result.push(subagent);
     }
     return result;
   }, [subagentsByRunId]);
@@ -4044,7 +4042,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       const turnArtifacts = rawSessionArtifacts.filter(
         a => turnMessageIds.has(a.messageId) && PREVIEWABLE_ARTIFACT_TYPES.has(a.type)
       );
-      const turnSubagents = getTurnSubagents(turn);
 
       return (
         <LazyRenderTurn key={turn.id} turnId={turn.id} alwaysRender={alwaysRender} data-turn-index={index}>
@@ -4080,6 +4077,17 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                 onOpenLocalService={handleOpenLocalServiceArtifact}
                 onOpenHtmlFile={handleOpenHtmlFileInBrowser}
                 onForkMessage={remoteManaged ? undefined : handleForkMessage}
+                renderToolGroupFooter={(group) => {
+                  const groupSubagents = getToolGroupSubagents(group);
+                  if (groupSubagents.length === 0) return null;
+                  return (
+                    <SubagentTurnLinks
+                      subagents={groupSubagents}
+                      variant="tool"
+                      onSelectSubagent={handleSelectSubagent}
+                    />
+                  );
+                }}
                 showTypingIndicator={showTypingIndicator}
                 showCopyButtons={!isStreaming || !isLastTurn}
                 completedGoal={
@@ -4090,10 +4098,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                 planConfirmationMessageId={planConfirmationMessageId}
                 onConfirmPlan={handleConfirmPlan}
                 onAdjustPlan={handleAdjustPlan}
-              />
-              <SubagentTurnLinks
-                subagents={turnSubagents}
-                onSelectSubagent={handleSelectSubagent}
               />
             </div>
           )}
