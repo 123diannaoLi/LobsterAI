@@ -54,6 +54,7 @@ jobs:
       - name: Build macOS arm64 installer
         run: npm run dist:mac:arm64
         env:
+          NODE_OPTIONS: --max-old-space-size=8192
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -94,6 +95,7 @@ jobs:
       - name: Build macOS x64 installer
         run: npm run dist:mac:x64
         env:
+          NODE_OPTIONS: --max-old-space-size=8192
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
