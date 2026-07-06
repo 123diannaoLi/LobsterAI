@@ -468,15 +468,13 @@ function adHocSignMacApp(appPath) {
     '--deep',
     '--sign',
     '-',
-    '--options',
-    'runtime',
   ];
   if (existsSync(entitlementsPath)) {
     args.push('--entitlements', entitlementsPath);
   }
   args.push(appPath);
 
-  console.log('[electron-builder-hooks] Applying ad-hoc macOS signature for unsigned CI build...');
+  console.log('[electron-builder-hooks] Applying non-hardened ad-hoc macOS signature for unsigned CI build...');
   const result = spawnSync('codesign', args, { encoding: 'utf8' });
   if (result.status !== 0) {
     throw new Error(
