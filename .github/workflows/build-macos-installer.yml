@@ -54,6 +54,11 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm@10
 
+      - name: Install OpenClaw build tools
+        run: |
+          brew install coreutils
+          echo "$(brew --prefix coreutils)/libexec/gnubin" >> "$GITHUB_PATH"
+
       - name: Build macOS arm64 installer
         run: npm run dist:mac:arm64
         env:
@@ -97,6 +102,11 @@ jobs:
 
       - name: Install pnpm
         run: npm install -g pnpm@10
+
+      - name: Install OpenClaw build tools
+        run: |
+          brew install coreutils
+          echo "$(brew --prefix coreutils)/libexec/gnubin" >> "$GITHUB_PATH"
 
       - name: Build macOS x64 installer
         run: npm run dist:mac:x64
