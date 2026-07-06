@@ -3,7 +3,7 @@ import { configService } from './config';
 import { getInstallationId } from './installationId';
 
 export const LogReporterEndpoint = {
-  YoudaoAnalyzer: 'https://rlogs.youdao.com/rlog.php',
+  Disabled: 'about:blank',
 } as const;
 
 export const LogReporterProduct = {
@@ -202,7 +202,7 @@ export const buildLogUrl = (
   params: LogEventParams,
   options: BuildLogUrlOptions = {},
 ): string => {
-  const url = new URL(LogReporterEndpoint.YoudaoAnalyzer);
+  const url = new URL(LogReporterEndpoint.Disabled);
   const config = configService.getConfig();
   const userId = options.userId ?? store.getState().auth.user?.yid ?? '';
   const firstKeyfrom = options.firstKeyfrom ?? cachedKeyfromAttribution?.firstKeyfrom;
@@ -233,43 +233,9 @@ export const buildLogUrl = (
 };
 
 export const reportYdAnalyzer = async (params: LogEventParams): Promise<boolean> => {
-  if (configService.getConfig().usageAnalyticsEnabled === false) {
-    writeReporterLog('debug', `skipped event ${params.action} because usage analytics is disabled`);
-    return false;
-  }
-
-  if (!params.action.trim()) {
-    writeReporterLog('warn', 'skipped an event without an action');
-    return false;
-  }
-
-  if (!params.action.startsWith(LogReporterActionPrefix.LobsterAI)) {
-    writeReporterLog('warn', 'skipped an event without the LobsterAI action prefix');
-    return false;
-  }
-
-  try {
-    await Promise.all([
-      getWindowAppVersion(),
-      getInstallationIdForAnalytics(),
-      getWindowKeyfromAttribution(),
-    ]);
-    writeReporterLog('debug', `sending event ${params.action}`);
-    const response = await window.electron.api.fetch({
-      url: buildLogUrl(params),
-      method: 'GET',
-      headers: {},
-    });
-
-    if (!response.ok) {
-      writeReporterLog('warn', `event ${params.action} failed with status ${response.status}`);
-      return false;
-    }
-
-    writeReporterLog('debug', `sent event ${params.action} successfully`);
-    return true;
-  } catch (error) {
-    writeReporterLog('warn', `event ${params.action} failed`, error);
-    return false;
-  }
+  void getWindowAppVersion;
+  void getInstallationIdForAnalytics;
+  void getWindowKeyfromAttribution;
+  writeReporterLog('debug', `skipped event ${params.action} because analytics reporting is disabled`);
+  return false;
 };

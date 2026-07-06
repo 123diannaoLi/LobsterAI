@@ -40,17 +40,26 @@ export interface AsrHandlerDeps {
   getAuthTokens: () => AuthTokens | null;
   fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
   getServerApiBaseUrl: () => string;
+  areExternalFeaturesDisabled?: () => boolean;
 }
 
 export function registerAsrIpcHandlers({
   getAuthTokens,
   fetchWithAuth,
   getServerApiBaseUrl,
+  areExternalFeaturesDisabled,
 }: AsrHandlerDeps): void {
   ipcMain.handle(
     AsrIpcChannel.CreateRealtimeSession,
     async (_event, options?: AsrRealtimeSessionRequest): Promise<AsrRealtimeSessionResult> => {
       try {
+        if (areExternalFeaturesDisabled?.()) {
+          return {
+            success: false,
+            code: AsrApiCode.ConfigInvalid,
+            error: 'ASR is disabled by enterprise configuration',
+          };
+        }
         const tokens = getAuthTokens();
         if (!tokens) {
           console.warn('[ASR] realtime session request was rejected because no auth tokens are available');

@@ -11,8 +11,14 @@ export type EnterpriseUIAction = 'hide' | 'disable' | 'readonly';
 export type EnterpriseManifest = {
   version: string;
   name: string;
+  profileId?: string;
+  serverApiBaseUrl?: string;
+  im?: {
+    platforms?: string[];
+  };
   ui?: Record<string, EnterpriseUIAction>;
   disableUpdate?: boolean;
+  disableExternalFeatures?: boolean;
   sync: {
     openclaw: boolean;
     skills: boolean | 'merge' | 'overwrite';
@@ -47,6 +53,55 @@ const ENTERPRISE_CONFIG_DIR = 'enterprise-config';
 const MANIFEST_FILE = 'manifest.json';
 const ACCOUNT_COMPAT_CHANNEL_KEYS = ['feishu', 'dingtalk', 'dingtalk-connector', 'qqbot', 'wecom', 'moltbot-popo'] as const;
 type AccountCompatChannelKey = typeof ACCOUNT_COMPAT_CHANNEL_KEYS[number];
+
+const getUserEnterpriseConfigDir = (): string => (
+  path.join(app.getPath('userData'), ENTERPRISE_CONFIG_DIR)
+);
+
+const readEnterpriseManifest = (configPath: string): Partial<EnterpriseManifest> | null => {
+  try {
+    const raw = fs.readFileSync(path.join(configPath, MANIFEST_FILE), 'utf-8');
+    const manifest = JSON.parse(raw);
+    return manifest && typeof manifest === 'object' ? manifest : null;
+  } catch {
+    return null;
+  }
+};
+
+const hasEnterpriseManifest = (configPath: string): boolean => (
+  fs.existsSync(path.join(configPath, MANIFEST_FILE))
+);
+
+const readEnterpriseManifestVersion = (configPath: string): string | null => {
+  const manifest = readEnterpriseManifest(configPath);
+  return typeof manifest?.version === 'string' ? manifest.version : null;
+};
+
+function resolvePackagedEnterpriseConfigPath(): string | null {
+  if (!app.isPackaged) return null;
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  if (!resourcesPath) return null;
+  const configPath = path.join(resourcesPath, ENTERPRISE_CONFIG_DIR);
+  return hasEnterpriseManifest(configPath) ? configPath : null;
+}
+
+function normalizeEnterpriseProfileId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(normalized)) return null;
+  return normalized;
+}
+
+export function resolvePackagedEnterpriseUserDataPath(appName: string): string | null {
+  const configPath = resolvePackagedEnterpriseConfigPath();
+  if (!configPath) return null;
+
+  const manifest = readEnterpriseManifest(configPath);
+  const profileId = normalizeEnterpriseProfileId(manifest?.profileId);
+  if (!profileId) return null;
+
+  return path.join(app.getPath('appData'), `${appName}-${profileId}`);
+}
 
 const ACCOUNT_COMPAT_CHANNEL_TOP_LEVEL_MAP: Record<AccountCompatChannelKey, Record<string, string>> = {
   feishu: {
@@ -279,13 +334,43 @@ function stripMergedChannelTopLevelAccountCredentialFields(config: Record<string
 }
 
 /**
+ * Copy packaged enterprise defaults from resources/enterprise-config into
+ * userData/enterprise-config so installed builds can self-seed enterprise mode.
+ */
+export function syncPackagedEnterpriseConfigToUserData(): string | null {
+  const sourcePath = resolvePackagedEnterpriseConfigPath();
+  if (!sourcePath) return null;
+
+  const targetPath = getUserEnterpriseConfigDir();
+  const sourceVersion = readEnterpriseManifestVersion(sourcePath);
+  const targetVersion = hasEnterpriseManifest(targetPath)
+    ? readEnterpriseManifestVersion(targetPath)
+    : null;
+
+  if (sourceVersion && sourceVersion === targetVersion) {
+    return targetPath;
+  }
+
+  const userDataRoot = path.resolve(app.getPath('userData'));
+  const resolvedTarget = path.resolve(targetPath);
+  if (resolvedTarget !== userDataRoot && !resolvedTarget.startsWith(`${userDataRoot}${path.sep}`)) {
+    throw new Error(`[Enterprise] refusing to sync enterprise config outside userData: ${resolvedTarget}`);
+  }
+
+  fs.rmSync(targetPath, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.cpSync(sourcePath, targetPath, { recursive: true });
+  console.log(`[Enterprise] synced packaged enterprise config ${sourceVersion ?? 'unknown'} to userData`);
+  return targetPath;
+}
+
+/**
  * Check if an enterprise config package exists at the well-known path.
  * Returns the directory path if manifest.json is found, null otherwise.
  */
 export function resolveEnterpriseConfigPath(): string | null {
-  const configPath = path.join(app.getPath('userData'), ENTERPRISE_CONFIG_DIR);
-  const manifestPath = path.join(configPath, MANIFEST_FILE);
-  if (fs.existsSync(manifestPath)) {
+  const configPath = getUserEnterpriseConfigDir();
+  if (hasEnterpriseManifest(configPath)) {
     return configPath;
   }
   return null;
@@ -397,7 +482,12 @@ function syncModelConfig(configPath: string, store: SqliteStore): void {
     const raw = fs.readFileSync(openclawPath, 'utf-8');
     const config = JSON.parse(raw) as Record<string, unknown>;
     const models = config.models as { providers?: Record<string, any> } | undefined;
-    const agents = config.agents as { defaults?: { model?: { primary?: string } } } | undefined;
+    const agents = config.agents as {
+      defaults?: {
+        model?: { primary?: string };
+        models?: Record<string, { params?: { extra_body?: unknown } }>;
+      };
+    } | undefined;
 
     if (!models?.providers || Object.keys(models.providers).length === 0) {
       console.log('[Enterprise] no models.providers in openclaw.json, skipping model config sync');
@@ -406,15 +496,30 @@ function syncModelConfig(configPath: string, store: SqliteStore): void {
 
     // Build app_config.providers from openclaw providers
     const appProviders: Record<string, any> = {};
-    const allModels: Array<{ id: string; name: string; provider?: string; providerKey?: string; supportsImage?: boolean }> = [];
+    const allModels: Array<{
+      id: string;
+      name: string;
+      provider?: string;
+      providerKey?: string;
+      supportsImage?: boolean;
+      supportsThinking?: boolean;
+      customParams?: Record<string, unknown>;
+    }> = [];
 
     for (const [providerId, providerConfig] of Object.entries(models.providers)) {
       const apiFormat = API_FORMAT_MAP[providerConfig.api] ?? 'anthropic';
-      const providerModels = (providerConfig.models ?? []).map((m: any) => ({
-        id: m.id,
-        name: m.name ?? m.id,
-        supportsImage: Array.isArray(m.input) && m.input.includes('image'),
-      }));
+      const providerModels = (providerConfig.models ?? []).map((m: any) => {
+        const modelRef = `${providerId}/${m.id}`;
+        const extraBody = agents?.defaults?.models?.[modelRef]?.params?.extra_body;
+        const supportsThinking = m.reasoning === true;
+        return {
+          id: m.id,
+          name: m.name ?? m.id,
+          supportsImage: Array.isArray(m.input) && m.input.includes('image'),
+          ...(supportsThinking ? { supportsThinking } : {}),
+          ...(isRecord(extraBody) ? { customParams: extraBody } : {}),
+        };
+      });
 
       // Resolve apiKey: use plain text value, skip placeholders like ${LOBSTER_...}
       const apiKey = typeof providerConfig.apiKey === 'string' && !providerConfig.apiKey.startsWith('${')

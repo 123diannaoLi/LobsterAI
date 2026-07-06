@@ -2,16 +2,36 @@ import { app } from 'electron';
 
 import { HtmlSharePublicRoute } from '../../shared/htmlShare/constants';
 import type { SqliteStore } from '../sqliteStore';
+import {
+  MockServerApiConfigValue,
+  startMockServerApi,
+  stopMockServerApi,
+} from './mockServerApi';
 
 let cachedTestMode: boolean | null = null;
+let cachedServerApiBaseUrl: string | null = null;
+let cachedExternalFeaturesDisabled = false;
 
 /**
- * Read testMode from store and cache it.
+ * Read endpoint-related settings from store and cache them.
  * Call once at startup and again whenever app_config changes.
  */
 export function refreshEndpointsTestMode(store: SqliteStore): void {
   const appConfig = store.get<any>('app_config');
+  const enterpriseConfig = store.get<any>('enterprise_config');
+  const enterpriseServerApiBaseUrl = typeof enterpriseConfig?.serverApiBaseUrl === 'string'
+    ? enterpriseConfig.serverApiBaseUrl.trim()
+    : '';
   cachedTestMode = appConfig?.app?.testMode === true;
+  if (enterpriseServerApiBaseUrl.toLowerCase() === MockServerApiConfigValue) {
+    cachedServerApiBaseUrl = startMockServerApi();
+  } else {
+    stopMockServerApi();
+    cachedServerApiBaseUrl = enterpriseServerApiBaseUrl
+      ? enterpriseServerApiBaseUrl.replace(/\/+$/, '')
+      : null;
+  }
+  cachedExternalFeaturesDisabled = enterpriseConfig?.disableExternalFeatures === true;
 }
 
 /**
@@ -27,10 +47,13 @@ export const isTestModeEnabled = (): boolean => {
  * Used for auth exchange/refresh, models, proxy, etc.
  */
 export const getServerApiBaseUrl = (): string => {
+  if (cachedServerApiBaseUrl) return cachedServerApiBaseUrl;
   return isTestModeEnabled()
-    ? 'https://lobsterai-server.inner.youdao.com'
-    : 'https://lobsterai-server.youdao.com';
+    ? 'http://127.0.0.1:17981'
+    : 'http://127.0.0.1:17981';
 };
+
+export const areExternalFeaturesDisabled = (): boolean => cachedExternalFeaturesDisabled;
 
 export const getHtmlSharePublicBaseUrl = (): string => {
   return `${getServerApiBaseUrl()}${HtmlSharePublicRoute.Root}`;
@@ -38,31 +61,31 @@ export const getHtmlSharePublicBaseUrl = (): string => {
 
 export const getUpdateCheckUrl = (): string => (
   isTestModeEnabled()
-    ? 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/test/update'
-    : 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/prod/update'
+    ? 'https://aicloudsail.longcheer.com:8077/'
+    : 'https://aicloudsail.longcheer.com:8077/'
 );
 
 export const getManualUpdateCheckUrl = (): string => (
   isTestModeEnabled()
-    ? 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/test/update-manual'
-    : 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/prod/update-manual'
+    ? 'https://aicloudsail.longcheer.com:8077/'
+    : 'https://aicloudsail.longcheer.com:8077/'
 );
 
 export const getFallbackDownloadUrl = (): string => (
   isTestModeEnabled()
-    ? 'https://lobsterai.inner.youdao.com/#/download-list'
-    : 'https://lobsterai.youdao.com/#/download-list'
+    ? 'https://aicloudsail.longcheer.com:8077/'
+    : 'https://aicloudsail.longcheer.com:8077/'
 );
 
 export const getSkillStoreUrl = (): string => (
   isTestModeEnabled()
-    ? 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/test/skill-store'
-    : 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/prod/skill-store'
+    ? 'https://aicloudsail.longcheer.com:8077/'
+    : 'https://aicloudsail.longcheer.com:8077/'
 );
 
 // Portal 页面
-const PORTAL_BASE_TEST = 'https://lobsterai.inner.youdao.com/portal#';
-const PORTAL_BASE_PROD = 'https://lobsterai.youdao.com/portal#';
+const PORTAL_BASE_TEST = 'https://aicloudsail.longcheer.com:8077/#';
+const PORTAL_BASE_PROD = 'https://aicloudsail.longcheer.com:8077/#';
 
 const getPortalBase = (): string => isTestModeEnabled() ? PORTAL_BASE_TEST : PORTAL_BASE_PROD;
 
@@ -70,6 +93,6 @@ export const getPortalTasksUrl = (): string => `${getPortalBase()}/profile/detai
 
 export const getKitStoreUrl = (): string => (
   isTestModeEnabled()
-    ? 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/test/kit-store'
-    : 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/prod/kit-store'
+    ? 'https://aicloudsail.longcheer.com:8077/'
+    : 'https://aicloudsail.longcheer.com:8077/'
 );

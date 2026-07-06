@@ -1,7 +1,7 @@
 {
-  "appId": "com.lobsterai.app",
-  "productName": "LobsterAI",
-  "executableName": "LobsterAI",
+  "appId": "com.longclaw.app",
+  "productName": "LongClaw",
+  "executableName": "LongClaw",
   "directories": {
     "output": "release"
   },
@@ -13,12 +13,16 @@
     {
       "from": "dist",
       "to": "dist",
-      "filter": ["**/*"]
+      "filter": [
+        "**/*"
+      ]
     },
     {
       "from": "dist-electron",
       "to": "dist-electron",
-      "filter": ["**/*"]
+      "filter": [
+        "**/*"
+      ]
     },
     "!**/*.map",
     "!**/*.d.ts",
@@ -52,6 +56,13 @@
       ]
     },
     {
+      "from": "resources/enterprise-config",
+      "to": "enterprise-config",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
       "from": "resources/tray",
       "to": "tray",
       "filter": [
@@ -65,8 +76,10 @@
   ],
   "protocols": [
     {
-      "name": "LobsterAI",
-      "schemes": ["lobsterai"]
+      "name": "LongClaw",
+      "schemes": [
+        "longclaw"
+      ]
     }
   ],
   "mac": {
@@ -81,10 +94,10 @@
     "entitlementsInherit": "build/entitlements.mac.plist",
     "extendInfo": {
       "CFBundleIconName": "icon",
-      "NSMicrophoneUsageDescription": "LobsterAI 需要访问您的麦克风来录制语音输入并进行语音识别。",
-      "NSCalendarsUsageDescription": "LobsterAI 需要访问您的日历来帮助您查看和管理日程安排，例如查找事件、创建会议等。",
-      "NSRemindersUsageDescription": "LobsterAI 需要访问您的提醒事项来帮助您管理待办事项。",
-      "NSAppleEventsUsageDescription": "LobsterAI 需要使用 Apple Events 来控制 Calendar 应用执行自动化操作。"
+      "NSMicrophoneUsageDescription": "LongClaw 需要访问您的麦克风来录制语音输入并进行语音识别。",
+      "NSCalendarsUsageDescription": "LongClaw 需要访问您的日历来帮助您查看和管理日程安排，例如查找事件、创建会议等。",
+      "NSRemindersUsageDescription": "LongClaw 需要访问您的提醒事项来帮助您管理待办事项。",
+      "NSAppleEventsUsageDescription": "LongClaw 需要使用 Apple Events 来控制 Calendar 应用执行自动化操作。"
     },
     "extraResources": [
       {
@@ -244,7 +257,7 @@
       }
     ],
     "desktop": {
-      "Name": "LobsterAI",
+      "Name": "LongClaw",
       "Comment": "AI-assisted coding and productivity tool",
       "Terminal": "false"
     }

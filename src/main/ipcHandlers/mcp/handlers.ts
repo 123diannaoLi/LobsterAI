@@ -10,6 +10,7 @@ import { startQichachaMcpApiKeyLogin } from '../../mcp/qichachaMcpAuth';
 
 export interface McpHandlerDeps {
   getMcpRuntime: () => McpRuntime;
+  areExternalFeaturesDisabled?: () => boolean;
   syncOpenClawConfig: (options: {
     reason: string;
     restartGatewayIfRunning?: boolean;
@@ -124,7 +125,7 @@ function buildQichachaServerData(
 }
 
 export function registerMcpHandlers(deps: McpHandlerDeps): void {
-  const { getMcpRuntime, syncOpenClawConfig } = deps;
+  const { getMcpRuntime, areExternalFeaturesDisabled, syncOpenClawConfig } = deps;
 
   ipcMain.handle(McpIpcChannel.List, () => {
     try {
@@ -344,6 +345,9 @@ export function registerMcpHandlers(deps: McpHandlerDeps): void {
   });
 
   ipcMain.handle(McpIpcChannel.FetchMarketplace, async () => {
+    if (areExternalFeaturesDisabled?.()) {
+      return { success: false, error: 'External MCP marketplace is disabled by enterprise configuration' };
+    }
     const url = app.isPackaged
       ? 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/prod/mcp-marketplace'
       : 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/test/mcp-marketplace';

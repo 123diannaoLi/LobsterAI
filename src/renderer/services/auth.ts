@@ -60,7 +60,7 @@ export function mapPricingCatalogTextModelsToServerModels(
     const modelName = readString(model.modelName) || modelId;
     const provider = readString(model.providerLabel)
       || readString(model.provider)
-      || 'LobsterAI';
+      || 'LongClaw';
     const contextWindow = readPositiveNumber(model.contextWindow);
     const costMultiplier = readPositiveNumber(model.costMultiplier);
 
@@ -153,30 +153,10 @@ class AuthService {
   }
 
   /**
-   * Fetch login URL from overmind, fallback to Portal login page.
+   * Resolve the configured portal login URL.
    */
   private async fetchLoginUrl(): Promise<string> {
-    const { getLoginOvermindUrl } = await import('./endpoints');
-    const url = getLoginOvermindUrl();
-    try {
-      const response = await window.electron.api.fetch({
-        url,
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-      if (response.ok && typeof response.data === 'object' && response.data !== null) {
-        const value = (response.data as any)?.data?.value;
-        if (typeof value === 'string' && value.trim()) {
-          console.log('[Auth] fetched login URL from overmind');
-          return value.trim();
-        }
-      }
-    } catch (e) {
-      console.error('[Auth] Failed to fetch login URL from overmind:', e);
-    }
-    // Fallback: use Portal login page directly
     const { getPortalLoginUrl } = await import('./endpoints');
-    console.log('[Auth] using fallback portal login URL');
     return getPortalLoginUrl();
   }
 

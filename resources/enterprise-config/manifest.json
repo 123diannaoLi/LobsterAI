@@ -1,0 +1,27 @@
+{
+  "version": "2026.7.7-longclaw-mock",
+  "name": "LongClaw Offline Distribution",
+  "profileId": "longcheer",
+  "serverApiBaseUrl": "mock",
+  "im": {
+    "platforms": [
+      "feishu"
+    ]
+  },
+  "ui": {
+    "settings.model": "hide",
+    "login": "hide",
+    "htmlShare": "hide",
+    "mediaGeneration": "hide",
+    "voiceInput": "hide"
+  },
+  "disableUpdate": true,
+  "disableExternalFeatures": true,
+  "sync": {
+    "openclaw": false,
+    "skills": false,
+    "agents": false,
+    "mcp": false,
+    "plugins": false
+  }
+}

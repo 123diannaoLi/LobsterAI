@@ -66,6 +66,7 @@ function downloadBuffer(url: string): Promise<Buffer> {
 export interface KitHandlerDeps {
   getStore: () => SqliteStore;
   getKitStoreUrl: () => string;
+  areExternalFeaturesDisabled?: () => boolean;
   getSkillManager: () => SkillManager;
   syncOpenClawConfig: (options: {
     reason: string;
@@ -235,10 +236,13 @@ function notifySkillsChanged(): void {
 }
 
 export function registerKitHandlers(deps: KitHandlerDeps): void {
-  const { getStore, getKitStoreUrl, getSkillManager, syncOpenClawConfig } = deps;
+  const { getStore, getKitStoreUrl, areExternalFeaturesDisabled, getSkillManager, syncOpenClawConfig } = deps;
 
   // Fetch kit store catalog from overmind
   ipcMain.handle('kits:fetchStore', async () => {
+    if (areExternalFeaturesDisabled?.()) {
+      return { success: false, error: 'External kit store is disabled by enterprise configuration' };
+    }
     const url = getKitStoreUrl();
     console.log(`[KitStore] fetching from: ${url}`);
     try {

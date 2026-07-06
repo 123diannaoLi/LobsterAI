@@ -59,6 +59,19 @@ jobs:
           brew install coreutils
           echo "$(brew --prefix coreutils)/libexec/gnubin" >> "$GITHUB_PATH"
 
+
+      - name: Configure enterprise distribution
+        if: ${{ secrets.LONGCLAW_ENTERPRISE_CONFIG_B64 != '' }}
+        shell: bash
+        env:
+          LONGCLAW_ENTERPRISE_CONFIG_B64: ${{ secrets.LONGCLAW_ENTERPRISE_CONFIG_B64 }}
+        run: |
+          set -euo pipefail
+          rm -rf resources/enterprise-config
+          mkdir -p resources/enterprise-config
+          printf '%s' "$LONGCLAW_ENTERPRISE_CONFIG_B64" | base64 --decode > /tmp/longclaw-enterprise-config.tgz
+          tar -xzf /tmp/longclaw-enterprise-config.tgz -C resources/enterprise-config
+          test -f resources/enterprise-config/manifest.json
       - name: Build macOS arm64 installer
         run: npm run dist:mac:arm64
         env:
@@ -104,6 +117,19 @@ jobs:
           brew install coreutils
           echo "$(brew --prefix coreutils)/libexec/gnubin" >> "$GITHUB_PATH"
 
+
+      - name: Configure enterprise distribution
+        if: ${{ secrets.LONGCLAW_ENTERPRISE_CONFIG_B64 != '' }}
+        shell: bash
+        env:
+          LONGCLAW_ENTERPRISE_CONFIG_B64: ${{ secrets.LONGCLAW_ENTERPRISE_CONFIG_B64 }}
+        run: |
+          set -euo pipefail
+          rm -rf resources/enterprise-config
+          mkdir -p resources/enterprise-config
+          printf '%s' "$LONGCLAW_ENTERPRISE_CONFIG_B64" | base64 --decode > /tmp/longclaw-enterprise-config.tgz
+          tar -xzf /tmp/longclaw-enterprise-config.tgz -C resources/enterprise-config
+          test -f resources/enterprise-config/manifest.json
       - name: Build macOS x64 installer
         run: npm run dist:mac:x64
         env:

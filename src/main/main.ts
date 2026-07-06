@@ -204,6 +204,7 @@ import {
   performPendingDataMigrationRestoreSync,
 } from './libs/dataMigration/dataMigrationService';
 import {
+  areExternalFeaturesDisabled,
   getHtmlSharePublicBaseUrl,
   getKitStoreUrl,
   getPortalTasksUrl,
@@ -214,7 +215,9 @@ import {
 import {
   mergeEnterpriseOpenclawConfig,
   resolveEnterpriseConfigPath,
+  resolvePackagedEnterpriseUserDataPath,
   syncEnterpriseConfig,
+  syncPackagedEnterpriseConfigToUserData,
 } from './libs/enterpriseConfigSync';
 import {
   createOfficePreviewSession,
@@ -238,6 +241,7 @@ import { packageHtmlFile } from './libs/htmlShare/htmlSharePackager';
 import { getKeyfromAttribution, initializeKeyfromAttribution } from './libs/keyfromAttribution';
 import { exportLogsZip } from './libs/logExport';
 import { inferImageMimeTypeFromDataUrl, type PersistedGeneratedImageAsset, persistGeneratedImageAssets, type PersistGeneratedImageAssetsResult, persistGeneratedVideoAssets, type RemoteGeneratedMediaAsset } from './libs/mediaAssetPersistence';
+import { stopMockServerApi } from './libs/mockServerApi';
 import { migrateAgentModelRefs, parsePrimaryModelRef, resolveQualifiedAgentModelRef } from './libs/openclawAgentModels';
 import {
   buildManagedSessionKey,
@@ -1134,7 +1138,7 @@ const resolveInlineAttachmentDir = (cwd?: string): string => {
       return path.join(resolved, '.cowork-temp', 'attachments', 'manual');
     }
   }
-  return path.join(app.getPath('temp'), 'lobsterai', 'attachments');
+  return path.join(app.getPath('temp'), 'longclaw', 'attachments');
 };
 
 const ensurePngFileName = (value: string): string => {
@@ -1151,7 +1155,7 @@ const buildLogExportFileName = (): string => {
   const now = new Date();
   const datePart = `${now.getFullYear()}${padTwoDigits(now.getMonth() + 1)}${padTwoDigits(now.getDate())}`;
   const timePart = `${padTwoDigits(now.getHours())}${padTwoDigits(now.getMinutes())}${padTwoDigits(now.getSeconds())}`;
-  return `lobsterai-logs-${datePart}-${timePart}.zip`;
+  return `longclaw-logs-${datePart}-${timePart}.zip`;
 };
 
 const OPENCLAW_DAILY_LOG_RETENTION_DAYS = 7;
@@ -1344,7 +1348,8 @@ const savePngWithDialog = async (
 
 const configureUserDataPath = (): void => {
   const appDataPath = app.getPath('appData');
-  const preferredUserDataPath = path.join(appDataPath, APP_NAME);
+  const preferredUserDataPath = resolvePackagedEnterpriseUserDataPath(APP_NAME)
+    ?? path.join(appDataPath, APP_NAME);
   const currentUserDataPath = app.getPath('userData');
 
   if (currentUserDataPath !== preferredUserDataPath) {
@@ -3423,11 +3428,11 @@ if (!gotTheLock) {
   if (!app.isPackaged) {
     // In dev mode, setAsDefaultProtocolClient needs the electron exe path
     // and the app entry point as extra args so the OS can relaunch correctly
-    app.setAsDefaultProtocolClient('lobsterai', process.execPath, [
+    app.setAsDefaultProtocolClient('longclaw', process.execPath, [
       path.resolve(process.argv[1]),
     ]);
   } else {
-    app.setAsDefaultProtocolClient('lobsterai');
+    app.setAsDefaultProtocolClient('longclaw');
   }
 
   const authCallbackRouter = new AuthCallbackRouter({
@@ -3441,7 +3446,7 @@ if (!gotTheLock) {
   });
 
   /**
-   * Parse a lobsterai:// deep link and send (or buffer) the auth code.
+   * Parse a longclaw:// deep link and send (or buffer) the auth code.
    */
   const handleDeepLink = (url: string) => {
     authCallbackRouter.handleDeepLink(url);
@@ -3497,7 +3502,7 @@ if (!gotTheLock) {
     }
 
     // Check for deep link in command line args (Windows/Linux)
-    const deepLink = commandLine.find(arg => arg.startsWith('lobsterai://'));
+    const deepLink = commandLine.find(arg => arg.startsWith('longclaw://'));
     if (deepLink) {
       handleDeepLink(deepLink);
     }
@@ -3631,7 +3636,7 @@ if (!gotTheLock) {
             ? [
                 {
                   archiveName: 'install-timing.log',
-                  filePath: path.join(app.getPath('appData'), 'LobsterAI', 'install-timing.log'),
+                  filePath: path.join(app.getPath('appData'), 'LongClaw', 'install-timing.log'),
                 },
               ]
             : []),
@@ -5760,6 +5765,7 @@ if (!gotTheLock) {
   registerSkillHandlers({
     getSkillManager,
     getSkillStoreUrl,
+    areExternalFeaturesDisabled,
     getOpenClawRuntimeAdapter: () => openClawRuntimeAdapter,
   });
 
@@ -5767,6 +5773,7 @@ if (!gotTheLock) {
   registerKitHandlers({
     getStore,
     getKitStoreUrl,
+    areExternalFeaturesDisabled,
     getSkillManager,
     syncOpenClawConfig,
   });
@@ -5924,7 +5931,7 @@ if (!gotTheLock) {
       console.error('[DataMigration] backup failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to back up LobsterAI data',
+        error: error instanceof Error ? error.message : 'Failed to back up LongClaw data',
       };
     }
   });
@@ -5983,11 +5990,11 @@ if (!gotTheLock) {
         success,
         scheduledRestart: rendererReleased,
         rollbackPath: restoreResult?.rollbackPath,
-        error: success ? undefined : restoreResult?.error || 'Failed to import LobsterAI data backup',
+        error: success ? undefined : restoreResult?.error || 'Failed to import LongClaw data backup',
       };
     } catch (error) {
       isCleanupInProgress = false;
-      const message = error instanceof Error ? error.message : 'Failed to import LobsterAI data backup';
+      const message = error instanceof Error ? error.message : 'Failed to import LongClaw data backup';
       console.error('[DataMigration] restore scheduling failed:', error);
       if (rendererReleased) {
         dialog.showErrorBox(t('dataMigrationRestoreDialogTitle'), message);
@@ -6194,7 +6201,7 @@ if (!gotTheLock) {
     }
   });
 
-  registerMcpHandlers({ getMcpRuntime, syncOpenClawConfig });
+  registerMcpHandlers({ getMcpRuntime, areExternalFeaturesDisabled, syncOpenClawConfig });
 
   // Cowork IPC handlers
   ipcMain.handle(
@@ -9315,7 +9322,7 @@ if (!gotTheLock) {
         const { execFile } = await import('child_process');
         const { promisify } = await import('util');
         const execFileAsync = promisify(execFile);
-        const tmpDir = path.join(app.getPath('temp'), 'lobsterai-thumbnails');
+        const tmpDir = path.join(app.getPath('temp'), 'longclaw-thumbnails');
         await fs.promises.mkdir(tmpDir, { recursive: true });
         const baseName = path.basename(resolvedPath);
         const outputFile = path.join(tmpDir, `${baseName}.png`);
@@ -9433,7 +9440,7 @@ if (!gotTheLock) {
 
   ipcMain.handle(ShellIpc.OpenHtmlInBrowser, async (_event, htmlContent: string) => {
     try {
-      const tmpDir = path.join(os.tmpdir(), 'lobsterai-preview');
+      const tmpDir = path.join(os.tmpdir(), 'longclaw-preview');
       fs.mkdirSync(tmpDir, { recursive: true });
       const tmpFile = path.join(tmpDir, `preview-${Date.now()}.html`);
       fs.writeFileSync(tmpFile, htmlContent, 'utf-8');
@@ -9543,6 +9550,7 @@ if (!gotTheLock) {
     getAuthTokens,
     fetchWithAuth,
     getServerApiBaseUrl,
+    areExternalFeaturesDisabled,
   });
 
   // ---- artifact file watching ----
@@ -10477,6 +10485,7 @@ if (!gotTheLock) {
     });
 
     stopOpenClawTokenProxy();
+    stopMockServerApi();
 
     // Stop skill services.
     const skillServices = getSkillServiceManager();
@@ -10569,7 +10578,7 @@ if (!gotTheLock) {
     // We don't trigger permission dialogs at startup to avoid annoying users
 
     // Ensure default working directory exists
-    const defaultProjectDir = path.join(os.homedir(), 'lobsterai', 'project');
+    const defaultProjectDir = path.join(os.homedir(), 'longclaw', 'project');
     if (!fs.existsSync(defaultProjectDir)) {
       fs.mkdirSync(defaultProjectDir, { recursive: true });
       console.log('Created default project directory:', defaultProjectDir);
@@ -10715,6 +10724,7 @@ if (!gotTheLock) {
     // Enterprise config sync — must run before openclawConfigSync
     profiler.mark('enterpriseConfigSync');
     // so enterprise data is in SQLite when the config is generated.
+    syncPackagedEnterpriseConfigToUserData();
     const enterpriseConfigPath = resolveEnterpriseConfigPath();
     if (enterpriseConfigPath) {
       try {
@@ -10791,6 +10801,7 @@ if (!gotTheLock) {
             }
           },
         );
+        refreshEndpointsTestMode(store);
       } catch (error) {
         console.error('[Enterprise] config sync failed:', error);
       }
@@ -10800,6 +10811,7 @@ if (!gotTheLock) {
       const hadEnterprise = store.get('enterprise_config');
       if (hadEnterprise) {
         store.delete('enterprise_config');
+        refreshEndpointsTestMode(store);
         // Reset executionMode to default so sandbox mode reverts to "off".
         const cs = getCoworkStore();
         cs.setConfig({ executionMode: 'local' });
@@ -10996,7 +11008,7 @@ if (!gotTheLock) {
 
     // Windows/Linux cold start: parse deep link from process.argv.
     // The router buffers it because the renderer is not ready yet after createWindow().
-    const coldStartDeepLink = process.argv.find(arg => arg.startsWith('lobsterai://'));
+    const coldStartDeepLink = process.argv.find(arg => arg.startsWith('longclaw://'));
     if (coldStartDeepLink) {
       handleDeepLink(coldStartDeepLink);
     }
