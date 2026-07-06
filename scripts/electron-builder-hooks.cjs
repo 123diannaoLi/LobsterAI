@@ -457,6 +457,35 @@ function removeAllBinDirsInCfmind(appOutDir) {
   console.log(`[electron-builder-hooks] ✓ Removed ${removedCount} .bin director${removedCount === 1 ? 'y' : 'ies'} from cfmind`);
 }
 
+function adHocSignMacApp(appPath) {
+  if (process.env.LONGCLAW_MAC_ADHOC_SIGN !== '1') {
+    return;
+  }
+
+  const entitlementsPath = path.join(__dirname, '..', 'build', 'entitlements.mac.plist');
+  const args = [
+    '--force',
+    '--deep',
+    '--sign',
+    '-',
+    '--options',
+    'runtime',
+  ];
+  if (existsSync(entitlementsPath)) {
+    args.push('--entitlements', entitlementsPath);
+  }
+  args.push(appPath);
+
+  console.log('[electron-builder-hooks] Applying ad-hoc macOS signature for unsigned CI build...');
+  const result = spawnSync('codesign', args, { encoding: 'utf8' });
+  if (result.status !== 0) {
+    throw new Error(
+      '[electron-builder-hooks] ad-hoc macOS signing failed: '
+      + (result.stderr || result.stdout || ('exit code ' + result.status)),
+    );
+  }
+  console.log('[electron-builder-hooks] ? ad-hoc macOS signature applied');
+}
 /**
  * Check if a command exists in the system PATH.
  */
@@ -611,6 +640,7 @@ async function afterPack(context) {
       // Remove all .bin directories (symlinks) before signing to prevent codesign failures
       removeAllBinDirsInCfmind(appPath);
       applyMacIconFix(appPath);
+      adHocSignMacApp(appPath);
     } else {
       console.warn(`[electron-builder-hooks] App not found at ${appPath}, skipping icon fix`);
     }

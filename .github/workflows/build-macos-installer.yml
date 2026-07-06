@@ -63,6 +63,7 @@ jobs:
         run: npm run dist:mac:arm64
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+          LONGCLAW_MAC_ADHOC_SIGN: 1
 
       - name: List release files
         run: ls -lah release
@@ -107,6 +108,7 @@ jobs:
         run: npm run dist:mac:x64
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+          LONGCLAW_MAC_ADHOC_SIGN: 1
 
       - name: List release files
         run: ls -lah release
