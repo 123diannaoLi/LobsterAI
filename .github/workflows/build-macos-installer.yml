@@ -1,0 +1,119 @@
+name: Build macOS Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: macOS architecture to build
+        required: true
+        default: arm64
+        type: choice
+        options:
+          - arm64
+          - x64
+          - both
+      keyfrom:
+        description: Artifact channel suffix
+        required: false
+        default: official
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: macos-installer-${{ github.ref }}-${{ github.event.inputs.arch || 'tag' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  KEYFROM: ${{ github.event.inputs.keyfrom || 'official' }}
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  build-arm64:
+    name: Build macOS arm64 DMG
+    if: ${{ github.event_name == 'push' || github.event.inputs.arch == 'arm64' || github.event.inputs.arch == 'both' }}
+    runs-on: macos-14
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build macOS arm64 installer
+        run: npm run dist:mac:arm64
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: List release files
+        run: ls -lah release
+
+      - name: Upload macOS arm64 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: longclaw-macos-arm64
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 14
+
+  build-x64:
+    name: Build macOS x64 DMG
+    if: ${{ github.event_name == 'push' || github.event.inputs.arch == 'x64' || github.event.inputs.arch == 'both' }}
+    runs-on: macos-15-intel
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build macOS x64 installer
+        run: npm run dist:mac:x64
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: List release files
+        run: ls -lah release
+
+      - name: Upload macOS x64 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: longclaw-macos-x64
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 14
