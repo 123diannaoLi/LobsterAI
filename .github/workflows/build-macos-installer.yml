@@ -51,6 +51,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install pnpm
+        run: npm install -g pnpm@10
+
       - name: Build macOS arm64 installer
         run: npm run dist:mac:arm64
         env:
@@ -91,6 +94,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10
 
       - name: Build macOS x64 installer
         run: npm run dist:mac:x64
