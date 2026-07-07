@@ -61,12 +61,15 @@ jobs:
 
 
       - name: Configure enterprise distribution
-        if: ${{ secrets.LONGCLAW_ENTERPRISE_CONFIG_B64 != '' }}
         shell: bash
         env:
           LONGCLAW_ENTERPRISE_CONFIG_B64: ${{ secrets.LONGCLAW_ENTERPRISE_CONFIG_B64 }}
         run: |
           set -euo pipefail
+          if [ -z "${LONGCLAW_ENTERPRISE_CONFIG_B64:-}" ]; then
+            echo "LONGCLAW_ENTERPRISE_CONFIG_B64 is not set; using bundled default enterprise config."
+            exit 0
+          fi
           rm -rf resources/enterprise-config
           mkdir -p resources/enterprise-config
           printf '%s' "$LONGCLAW_ENTERPRISE_CONFIG_B64" | base64 --decode > /tmp/longclaw-enterprise-config.tgz
@@ -119,12 +122,15 @@ jobs:
 
 
       - name: Configure enterprise distribution
-        if: ${{ secrets.LONGCLAW_ENTERPRISE_CONFIG_B64 != '' }}
         shell: bash
         env:
           LONGCLAW_ENTERPRISE_CONFIG_B64: ${{ secrets.LONGCLAW_ENTERPRISE_CONFIG_B64 }}
         run: |
           set -euo pipefail
+          if [ -z "${LONGCLAW_ENTERPRISE_CONFIG_B64:-}" ]; then
+            echo "LONGCLAW_ENTERPRISE_CONFIG_B64 is not set; using bundled default enterprise config."
+            exit 0
+          fi
           rm -rf resources/enterprise-config
           mkdir -p resources/enterprise-config
           printf '%s' "$LONGCLAW_ENTERPRISE_CONFIG_B64" | base64 --decode > /tmp/longclaw-enterprise-config.tgz
