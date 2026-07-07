@@ -122,6 +122,8 @@ const App: React.FC = () => {
   const pendingPermission = useSelector(selectFirstPendingPermission);
   const authUser = useSelector((state: RootState) => state.auth.user);
   const isWindows = window.electron.platform === 'win32';
+  const loginHidden = enterpriseConfig?.ui?.login === 'hide';
+  const modelSettingsHidden = enterpriseConfig?.ui?.['settings.model'] === 'hide';
 
   const waitWithTimeout = useCallback(
     async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
@@ -228,8 +230,15 @@ const App: React.FC = () => {
         }
         mark('model resolution done');
 
-        const agreed = await window.electron.store.get('privacy_agreed');
-        setPrivacyAgreed(agreed === true);
+        const skipOnboarding = entConfig?.ui?.login === 'hide';
+        if (skipOnboarding) {
+          await window.electron.store.set('privacy_agreed', true);
+          setPrivacyAgreed(true);
+          setShowWelcome(false);
+        } else {
+          const agreed = await window.electron.store.get('privacy_agreed');
+          setPrivacyAgreed(agreed === true);
+        }
         mark('privacy check done');
 
         setIsInitialized(true);
@@ -560,8 +569,8 @@ const App: React.FC = () => {
   const handlePrivacyAccept = useCallback(async () => {
     await window.electron.store.set('privacy_agreed', true);
     setPrivacyAgreed(true);
-    setShowWelcome(true);
-  }, []);
+    setShowWelcome(!loginHidden);
+  }, [loginHidden]);
 
   const handlePrivacyReject = useCallback(() => {
     // 立刻隐藏窗口，让用户感觉立即关闭
@@ -570,13 +579,15 @@ const App: React.FC = () => {
 
   const handleWelcomeClose = useCallback(() => setShowWelcome(false), []);
   const handleWelcomeLogin = useCallback(async () => {
+    if (loginHidden) return;
     setShowWelcome(false);
     await authService.login();
-  }, []);
+  }, [loginHidden]);
   const handleWelcomeCustomModel = useCallback(() => {
     setShowWelcome(false);
+    if (modelSettingsHidden) return;
     handleShowSettings({ initialTab: 'model' });
-  }, [handleShowSettings]);
+  }, [handleShowSettings, modelSettingsHidden]);
 
   const handlePermissionResponse = useCallback(async (result: CoworkPermissionResult) => {
     if (!pendingPermission) return;
@@ -1025,7 +1036,7 @@ const App: React.FC = () => {
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={handleToggleSidebar}
           updateBadge={!isSidebarCollapsed ? updateBadge : null}
-          hideLogin={enterpriseConfig?.ui?.login === 'hide'}
+          hideLogin={loginHidden}
         />
         <div className={`flex-1 min-w-0 transition-[padding] duration-200 ease-out ${isSidebarCollapsed ? 'pl-1.5' : ''}`}>
           <div className="relative h-full min-h-0 rounded-xl border border-border bg-background overflow-hidden">
@@ -1117,6 +1128,8 @@ const App: React.FC = () => {
           onLogin={handleWelcomeLogin}
           onCustomModel={handleWelcomeCustomModel}
           onClose={handleWelcomeClose}
+          hideLogin={loginHidden}
+          hideCustomModel={modelSettingsHidden}
         />
       )}
     </div>

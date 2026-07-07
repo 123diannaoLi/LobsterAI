@@ -1,13 +1,24 @@
 import React from 'react';
+
 import { i18nService } from '@/services/i18n';
 
 interface WelcomeDialogProps {
   onLogin: () => void;
   onCustomModel: () => void;
   onClose: () => void;
+  hideLogin?: boolean;
+  hideCustomModel?: boolean;
 }
 
-const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onLogin, onCustomModel, onClose }) => {
+const WelcomeDialog: React.FC<WelcomeDialogProps> = ({
+  onLogin,
+  onCustomModel,
+  onClose,
+  hideLogin = false,
+  hideCustomModel = false,
+}) => {
+  const showActions = !hideLogin || !hideCustomModel;
+
   return (
     <div className="fixed inset-0 z-[60] bg-surface flex items-center justify-center">
       {/* gradient overlay */}
@@ -32,7 +43,7 @@ const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onLogin, onCustomModel, o
         {/* logo */}
         <img
           src="logo.png"
-          alt="LobsterAI"
+          alt="LongClaw"
           width={72}
           height={72}
           className="rounded-2xl mb-5 select-none"
@@ -64,32 +75,40 @@ const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onLogin, onCustomModel, o
         </div>
 
         {/* buttons — hand image sits at bottom-left of this row, overlapping login button */}
-        <div className="flex gap-3 w-full relative overflow-visible">
-          <img
-            src="hand.png"
-            alt=""
-            width={41}
-            height={55}
-            className="absolute select-none pointer-events-none z-10"
-            style={{ bottom: 0, left: -8 }}
-            draggable={false}
-            aria-hidden="true"
-          />
-          <button
-            onClick={onLogin}
-            className="w-[204px] h-10 rounded-xl text-sm font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-            style={{ backgroundColor: 'rgba(72, 133, 255, 1)' }}
-          >
-            {i18nService.t('welcomeLogin')}
-          </button>
-          <button
-            onClick={onCustomModel}
-            className="w-[204px] h-10 rounded-xl text-sm font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
-            style={{ backgroundColor: 'rgba(54, 57, 63, 1)' }}
-          >
-            {i18nService.t('welcomeCustomModel')}
-          </button>
-        </div>
+        {showActions && (
+          <div className="flex gap-3 w-full relative overflow-visible">
+            {!hideLogin && (
+              <img
+                src="hand.png"
+                alt=""
+                width={41}
+                height={55}
+                className="absolute select-none pointer-events-none z-10"
+                style={{ bottom: 0, left: -8 }}
+                draggable={false}
+                aria-hidden="true"
+              />
+            )}
+            {!hideLogin && (
+              <button
+                onClick={onLogin}
+                className="flex-1 h-10 rounded-xl text-sm font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+                style={{ backgroundColor: 'rgba(72, 133, 255, 1)' }}
+              >
+                {i18nService.t('welcomeLogin')}
+              </button>
+            )}
+            {!hideCustomModel && (
+              <button
+                onClick={onCustomModel}
+                className="flex-1 h-10 rounded-xl text-sm font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+                style={{ backgroundColor: 'rgba(54, 57, 63, 1)' }}
+              >
+                {i18nService.t('welcomeCustomModel')}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
