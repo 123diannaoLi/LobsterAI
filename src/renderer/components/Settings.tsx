@@ -876,6 +876,9 @@ interface SettingsProps extends SettingsOpenOptions {
   onUpdateFound?: (info: AppUpdateInfo) => void;
   enterpriseConfig?: {
     ui?: Record<string, 'hide' | 'disable' | 'readonly'>;
+    im?: {
+      platforms?: string[];
+    };
     disableUpdate?: boolean;
   } | null;
 }
@@ -4989,7 +4992,7 @@ const Settings: React.FC<SettingsProps> = ({
         );
 
       case 'im':
-        return <IMSettings />;
+        return <IMSettings allowedPlatforms={enterpriseConfig?.im?.platforms} />;
 
       case 'plugins':
         return (

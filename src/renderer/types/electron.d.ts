@@ -1519,6 +1519,9 @@ interface IElectronAPI {
   enterprise: {
     getConfig: () => Promise<{
       ui?: Record<string, 'hide' | 'disable' | 'readonly'>;
+      im?: {
+        platforms?: string[];
+      };
       disableUpdate?: boolean;
       version: string;
       name: string;

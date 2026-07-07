@@ -375,6 +375,14 @@ type IMInstanceRenameTarget = IMInstanceTarget & {
   value: string;
 };
 
+interface IMSettingsProps {
+  allowedPlatforms?: readonly string[];
+}
+
+const isKnownPlatform = (platform: string): platform is Platform => (
+  (PlatformRegistry.platforms as readonly string[]).includes(platform)
+);
+
 // Map of backend error messages to i18n keys
 const errorMessageI18nMap: Record<string, string> = {
   '账号已在其它地方登录': 'kickedByOtherClient',
@@ -390,7 +398,7 @@ function translateIMError(error: string | null): string {
   return error;
 }
 
-const IMSettings: React.FC = () => {
+const IMSettings: React.FC<IMSettingsProps> = ({ allowedPlatforms }) => {
   const dispatch = useDispatch();
   const { config, status, isLoading } = useSelector((state: RootState) => state.im);
   const [activePlatform, setActivePlatform] = useState<Platform>('weixin');
@@ -1040,10 +1048,19 @@ const IMSettings: React.FC = () => {
   const popoConnected = status.popo?.instances?.some(i => i.connected) ?? false;
   const emailConnected = status.email.instances.some(i => i.connected);
 
-  // Compute visible platforms based on language
+  const allowedPlatformSet = useMemo<ReadonlySet<Platform> | null>(() => {
+    if (!allowedPlatforms?.length) return null;
+    const normalized = allowedPlatforms.filter(isKnownPlatform);
+    return normalized.length > 0 ? new Set(normalized) : null;
+  }, [allowedPlatforms]);
+
+  // Compute visible platforms based on language and enterprise policy
   const platforms = useMemo<Platform[]>(() => {
-    return getVisibleIMPlatforms(language) as Platform[];
-  }, [language]);
+    const visiblePlatforms = getVisibleIMPlatforms(language) as Platform[];
+    return allowedPlatformSet
+      ? visiblePlatforms.filter((platform) => allowedPlatformSet.has(platform))
+      : visiblePlatforms;
+  }, [language, allowedPlatformSet]);
 
   // Ensure activePlatform is always in visible platforms when language changes
   useEffect(() => {
