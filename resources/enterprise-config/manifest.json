@@ -1,6 +1,6 @@
 {
-  "version": "2026.7.7-longclaw-mock",
-  "name": "LongClaw Offline Distribution",
+  "version": "2026.7.7-longcheer-qwen36-default",
+  "name": "Longcheer Custom Model Distribution",
   "profileId": "longcheer",
   "serverApiBaseUrl": "mock",
   "im": {
@@ -18,7 +18,7 @@
   "disableUpdate": true,
   "disableExternalFeatures": true,
   "sync": {
-    "openclaw": false,
+    "openclaw": true,
     "skills": false,
     "agents": false,
     "mcp": false,

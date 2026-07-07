@@ -1,0 +1,64 @@
+{
+  "models": {
+    "providers": {
+      "custom_0": {
+        "baseUrl": "http://172.16.92.213:23323/v1",
+        "api": "openai-completions",
+        "apiKey": "rd7fE2P8_267cfa45",
+        "auth": "api-key",
+        "models": [
+          {
+            "id": "Qwen3.5-397B-A17B-FP8",
+            "name": "qwen3.6",
+            "api": "openai-completions",
+            "input": [
+              "text",
+              "image"
+            ],
+            "reasoning": true
+          }
+        ]
+      },
+      "custom_1": {
+        "baseUrl": "http://172.16.92.211:23323/v1",
+        "api": "openai-completions",
+        "apiKey": "sk-9gHXenkyOSX3b5SLxzCsY6tj1Wxbo8wV879Ij3h1LERRVbQh",
+        "auth": "api-key",
+        "models": [
+          {
+            "id": "qwen3.6-plus",
+            "name": "qwen3.6-plus",
+            "api": "openai-completions",
+            "input": [
+              "text"
+            ],
+            "reasoning": true
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "custom_0/Qwen3.5-397B-A17B-FP8"
+      },
+      "models": {
+        "custom_0/Qwen3.5-397B-A17B-FP8": {
+          "params": {
+            "extra_body": {
+              "enable_thinking": true
+            }
+          }
+        },
+        "custom_1/qwen3.6-plus": {
+          "params": {
+            "extra_body": {
+              "enable_thinking": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
